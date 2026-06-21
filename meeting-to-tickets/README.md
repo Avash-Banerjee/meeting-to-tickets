@@ -36,6 +36,27 @@ Flags:
 
 Run `python scripts/check_invariants.py meetings/<slug>` to validate a meeting folder. Exits 0 if all rigor invariants hold (verbatim quotes present, valid YAML, allowed types, AC traceability).
 
+## Tests
+
+Run the structural-invariant pytest suite:
+
+```bash
+cd meeting-to-tickets
+.venv/bin/pytest scripts/ -v
+```
+
+Run invariants against a committed fixture snapshot as a smoke test:
+
+```bash
+.venv/bin/python scripts/check_invariants.py fixtures/expected/clean-short
+```
+
+Run invariants against a live meeting folder after `meeting-to-tickets` produces outputs:
+
+```bash
+.venv/bin/python scripts/check_invariants.py meetings/<slug>
+```
+
 ## Fixtures
 
 `fixtures/` holds four regression transcripts. `fixtures/expected/<slug>/` holds committed snapshots used to detect prompt drift.
