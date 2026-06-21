@@ -260,6 +260,9 @@ def test_check_ticket_passes_on_clean_input(tmp_path):
         ## Acceptance criteria
         - [ ] Criterion one
         - [ ] (inferred) Criterion two
+
+        ## Evidence
+        - qa.md -> Q1
     """)
     assert check_ticket(p) == []
 
@@ -307,6 +310,75 @@ def test_check_ticket_missing_key_does_not_double_report(tmp_path):
     type_messages = [v.message for v in violations if "type" in v.message]
     assert len(type_messages) == 1
     assert "missing required key: type" in type_messages[0]
+
+
+def test_check_ticket_flags_non_inferred_ac_without_evidence(tmp_path):
+    # AC bullet does NOT start with "(inferred)" and there's no Evidence
+    # section referencing a Q&A id -> traceability violation.
+    p = _write(tmp_path, "01-x.md", """
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: clean-short
+        cluster_id: C1
+        ---
+
+        # Title
+
+        ## Description
+        > Priya: "verbatim quote"
+
+        ## Acceptance criteria
+        - [ ] User can do thing.
+    """)
+    violations = check_ticket(p)
+    assert any("trace" in v.message.lower() or "evidence" in v.message.lower() for v in violations)
+
+
+def test_check_ticket_passes_when_all_ac_inferred(tmp_path):
+    # All ACs are explicitly (inferred) so no Evidence is required.
+    p = _write(tmp_path, "01-x.md", """
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: clean-short
+        cluster_id: C1
+        ---
+
+        # Title
+
+        ## Description
+        > Priya: "verbatim quote"
+
+        ## Acceptance criteria
+        - [ ] (inferred) Criterion one
+        - [x] (inferred) Criterion two
+    """)
+    assert check_ticket(p) == []
+
+
+def test_check_ticket_passes_when_evidence_references_qa(tmp_path):
+    p = _write(tmp_path, "01-x.md", """
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: clean-short
+        cluster_id: C1
+        ---
+
+        # Title
+
+        ## Description
+        > Priya: "verbatim quote"
+
+        ## Acceptance criteria
+        - [ ] User can export.
+        - [ ] (inferred) Column order matches finance.
+
+        ## Evidence
+        - qa.md -> Q1, Q3
+    """)
+    assert check_ticket(p) == []
 
 
 def test_check_ticket_flags_bad_type(tmp_path):

@@ -246,6 +246,34 @@ def check_ticket(path: pathlib.Path) -> List[Violation]:
 
     if "## Acceptance criteria" not in body:
         violations.append(Violation(path, "ticket missing Acceptance criteria section"))
+    else:
+        ac_section = body.split("## Acceptance criteria", 1)[1]
+        ac_section = ac_section.split("\n## ", 1)[0]
+        ac_lines = [
+            ln.strip()
+            for ln in ac_section.splitlines()
+            if re.match(r"^- \[[ xX]\]", ln.strip())
+        ]
+        # An AC bullet looks like "- [ ] (inferred) ..." or "- [ ] ..."; strip
+        # the checkbox prefix and test whether the remainder begins with
+        # "(inferred)".
+        def _is_inferred(line: str) -> bool:
+            without_box = re.sub(r"^- \[[ xX]\]\s*", "", line)
+            return without_box.startswith("(inferred)")
+
+        non_inferred = [ln for ln in ac_lines if not _is_inferred(ln)]
+        if non_inferred:
+            evidence_section = ""
+            if "## Evidence" in body:
+                evidence_section = body.split("## Evidence", 1)[1]
+                evidence_section = evidence_section.split("\n## ", 1)[0]
+            if not re.search(r"Q\d+", evidence_section):
+                violations.append(
+                    Violation(
+                        path,
+                        "ticket has non-(inferred) Acceptance criteria but Evidence section does not trace to any Q&A id (Q\\d+)",
+                    )
+                )
 
     return violations
 
