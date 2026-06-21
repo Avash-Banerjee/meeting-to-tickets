@@ -1,0 +1,16 @@
+# SDD scratch state
+.superpowers/
+
+# User-local Claude Code settings
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
