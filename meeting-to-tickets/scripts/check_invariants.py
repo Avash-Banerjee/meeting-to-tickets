@@ -139,6 +139,173 @@ def check_qa(path: pathlib.Path) -> List[Violation]:
     return violations
 
 
+def _normalize_for_provenance(text: str) -> str:
+    """Collapse whitespace and unify quote variants for substring comparison."""
+    # Unify curly quotes -> straight; em/en dashes pass through unchanged.
+    table = {
+        ord("“"): '"',  # left double curly
+        ord("”"): '"',  # right double curly
+        ord("‘"): "'",  # left single curly
+        ord("’"): "'",  # right single curly
+    }
+    text = text.translate(table)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+_QUOTED_SPAN_RE = re.compile(r'"([^"]+)"')
+
+
+def _extract_quoted_spans(line: str) -> list[str]:
+    """Return all double-quoted substrings within a line (curly normalized)."""
+    normalized = line.translate({
+        ord("“"): '"',
+        ord("”"): '"',
+    })
+    return _QUOTED_SPAN_RE.findall(normalized)
+
+
+def _collect_normalized_utterances(normalized_path: pathlib.Path) -> str:
+    """Return a single normalized string of all utterance text in normalized.md.
+
+    Strips YAML frontmatter and HTML comments (e.g. `<!-- chunk 1/1 -->`,
+    `<!-- t=00:42 -->`), then collapses whitespace. Quote provenance is
+    checked by substring against this string.
+    """
+    text = normalized_path.read_text()
+    _, body = _split_frontmatter(text)
+    # Remove HTML comments (chunk markers and timestamp markers).
+    body = re.sub(r"<!--.*?-->", " ", body, flags=re.DOTALL)
+    return _normalize_for_provenance(body)
+
+
+_BLOCKQUOTE_RE = re.compile(r"^>\s+(.+)$", re.MULTILINE)
+
+
+def check_quote_provenance(meeting_folder: pathlib.Path) -> List[Violation]:
+    """Verify every blockquote in tickets/*.md and every Quotes-block line in
+    qa.md is a substring of the normalized.md transcript.
+    """
+    violations: list[Violation] = []
+    normalized_path = meeting_folder / "normalized.md"
+    if not normalized_path.exists():
+        return violations
+    haystack = _collect_normalized_utterances(normalized_path)
+
+    # ---- tickets ----
+    tickets_dir = meeting_folder / "tickets"
+    if tickets_dir.is_dir():
+        for ticket_path in sorted(tickets_dir.glob("*.md")):
+            ticket_text = ticket_path.read_text()
+            _, ticket_body = _split_frontmatter(ticket_text)
+            if "## Description" not in ticket_body:
+                continue
+            description = ticket_body.split("## Description", 1)[1]
+            description = description.split("\n## ", 1)[0]
+            for m in _BLOCKQUOTE_RE.finditer(description):
+                line = m.group(1)
+                spans = _extract_quoted_spans(line)
+                # If no double-quoted span found, fall back to the whole line
+                # after the speaker prefix.
+                if not spans:
+                    fallback = re.sub(r"^[^:]+:\s*", "", line).strip()
+                    if fallback:
+                        spans = [fallback]
+                for span in spans:
+                    needle = _normalize_for_provenance(span)
+                    if needle and needle not in haystack:
+                        violations.append(
+                            Violation(
+                                ticket_path,
+                                f"ticket Description quote not found in normalized.md: {span!r}",
+                            )
+                        )
+
+    # ---- qa.md ----
+    qa_path = meeting_folder / "qa.md"
+    if qa_path.exists():
+        qa_text = qa_path.read_text()
+        _, qa_body = _split_frontmatter(qa_text)
+        # Trim the Dropped section so its proposed-Q text doesn't get pulled
+        # into the last Q-block's Quotes scan.
+        dropped_idx = qa_body.find("\n## Dropped")
+        scan_body = qa_body[:dropped_idx] if dropped_idx != -1 else qa_body
+        # Walk each Q-block; for each, scan the Quotes section.
+        for block in _split_qa_blocks(scan_body):
+            header_match = _QA_HEADER_RE.search(block)
+            qa_id = (
+                header_match.group(0).split("—")[0].strip().split()[-1]
+                if header_match
+                else "?"
+            )
+            if "**Quotes:**" not in block:
+                continue
+            quotes_section = block.split("**Quotes:**", 1)[1]
+            # Stop at the next bold-label or end of block.
+            quotes_section = re.split(r"\n\*\*[A-Z]", quotes_section, 1)[0]
+            for ln in quotes_section.splitlines():
+                s = ln.strip()
+                if not s.startswith("- "):
+                    continue
+                spans = _extract_quoted_spans(s)
+                if not spans:
+                    fallback = re.sub(r"^-\s*[^:]+:\s*", "", s).strip()
+                    if fallback:
+                        spans = [fallback]
+                for span in spans:
+                    needle = _normalize_for_provenance(span)
+                    if needle and needle not in haystack:
+                        violations.append(
+                            Violation(
+                                qa_path,
+                                f"qa.md {qa_id}: quote not found in normalized.md: {span!r}",
+                            )
+                        )
+
+    return violations
+
+
+def check_ticket_cluster_counts(meeting_folder: pathlib.Path) -> List[Violation]:
+    """Cross-check ticket count against clusters minus cluster-level drops."""
+    violations: list[Violation] = []
+    clusters_path = meeting_folder / "clusters.md"
+    tickets_dir = meeting_folder / "tickets"
+    if not clusters_path.exists():
+        return violations
+    clusters_text = clusters_path.read_text()
+    frontmatter, _ = _split_frontmatter(clusters_text)
+    if not isinstance(frontmatter, dict):
+        return violations
+    total_clusters = frontmatter.get("total_clusters")
+    if not isinstance(total_clusters, int):
+        return violations
+
+    dropped_clusters = 0
+    dropped_path = meeting_folder / "dropped.md"
+    if dropped_path.exists():
+        for line in dropped_path.read_text().splitlines():
+            if re.match(r"^\s*-\s+C\d+", line):
+                dropped_clusters += 1
+
+    ticket_files = []
+    if tickets_dir.is_dir():
+        ticket_files = [
+            p
+            for p in sorted(tickets_dir.glob("*.md"))
+            if not p.name.endswith(".md.draft")
+        ]
+    expected = total_clusters - dropped_clusters
+    actual = len(ticket_files)
+    if expected != actual:
+        violations.append(
+            Violation(
+                meeting_folder,
+                f"ticket count ({actual}) does not match clusters ({total_clusters}) minus dropped clusters ({dropped_clusters}); expected {expected}",
+            )
+        )
+    return violations
+
+
 def collect_qa_ids(path: pathlib.Path) -> set[str]:
     """Return the set of Q-ids declared in a qa.md file (e.g. {'Q1', 'Q2'})."""
     if not path.exists():
@@ -296,6 +463,9 @@ def main(argv: list[str]) -> int:
     if tickets_dir.is_dir():
         for ticket in sorted(tickets_dir.glob("*.md")):
             violations.extend(check_ticket(ticket))
+    # Cross-file checks (need access to the whole meeting folder).
+    violations.extend(check_quote_provenance(folder))
+    violations.extend(check_ticket_cluster_counts(folder))
     for v in violations:
         print(f"{v.path}: {v.message}", file=sys.stderr)
     return 0 if not violations else 1

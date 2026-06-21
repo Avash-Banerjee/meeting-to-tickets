@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pathlib
 import textwrap
 
@@ -88,7 +90,13 @@ def test_check_normalized_flags_unparseable_yaml(tmp_path):
     assert any("no parseable YAML frontmatter" in v.message for v in violations)
 
 
-from check_invariants import check_qa, check_clusters, check_ticket
+from check_invariants import (
+    check_qa,
+    check_clusters,
+    check_ticket,
+    check_quote_provenance,
+    check_ticket_cluster_counts,
+)
 
 
 def test_check_qa_passes_on_clean_input(tmp_path):
@@ -400,3 +408,270 @@ def test_check_ticket_flags_bad_type(tmp_path):
     """)
     violations = check_ticket(p)
     assert any("type" in v.message.lower() for v in violations)
+
+
+# ----- quote-provenance + ticket-cluster-count tests -----
+
+
+def _scaffold_meeting(tmp_path: pathlib.Path, normalized_body: str, *, qa: str | None = None,
+                     tickets: dict[str, str] | None = None,
+                     clusters: str | None = None,
+                     dropped: str | None = None) -> pathlib.Path:
+    """Write a minimal meeting folder for cross-file checks."""
+    folder = tmp_path / "meeting"
+    folder.mkdir()
+    (folder / "normalized.md").write_text(textwrap.dedent(normalized_body).lstrip("\n"))
+    if qa is not None:
+        (folder / "qa.md").write_text(textwrap.dedent(qa).lstrip("\n"))
+    if clusters is not None:
+        (folder / "clusters.md").write_text(textwrap.dedent(clusters).lstrip("\n"))
+    if dropped is not None:
+        (folder / "dropped.md").write_text(textwrap.dedent(dropped).lstrip("\n"))
+    if tickets is not None:
+        (folder / "tickets").mkdir()
+        for name, body in tickets.items():
+            (folder / "tickets" / name).write_text(textwrap.dedent(body).lstrip("\n"))
+    return folder
+
+
+def test_check_quote_provenance_passes_when_ticket_quote_in_transcript(tmp_path):
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: I open the dashboard, screenshot it, then retype the numbers.
+        """,
+        tickets={
+            "01-x.md": """
+                ---
+                type: feature
+                priority_hint: medium
+                source_meeting: x
+                cluster_id: C1
+                ---
+
+                # T
+
+                ## Description
+                > Priya: "I open the dashboard, screenshot it, then retype the numbers."
+
+                ## Acceptance criteria
+                - [ ] (inferred) Something.
+            """,
+        },
+    )
+    assert check_quote_provenance(folder) == []
+
+
+def test_check_quote_provenance_flags_fabricated_ticket_quote(tmp_path):
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: I open the dashboard, screenshot it.
+        """,
+        tickets={
+            "01-x.md": """
+                ---
+                type: feature
+                priority_hint: medium
+                source_meeting: x
+                cluster_id: C1
+                ---
+
+                # T
+
+                ## Description
+                > Priya: "totally fabricated phrase not in transcript"
+
+                ## Acceptance criteria
+                - [ ] (inferred) Something.
+            """,
+        },
+    )
+    violations = check_quote_provenance(folder)
+    assert any("not found" in v.message.lower() or "no matching" in v.message.lower()
+               for v in violations)
+
+
+def test_check_quote_provenance_tolerates_smart_quotes(tmp_path):
+    # Transcript uses straight quotes; ticket uses curly quotes.
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: We tried a shared Notion page last quarter.
+        """,
+        tickets={
+            "01-x.md": """
+                ---
+                type: feature
+                priority_hint: medium
+                source_meeting: x
+                cluster_id: C1
+                ---
+
+                # T
+
+                ## Description
+                > Priya: “We tried a shared Notion page last quarter.”
+
+                ## Acceptance criteria
+                - [ ] (inferred) Something.
+            """,
+        },
+    )
+    assert check_quote_provenance(folder) == []
+
+
+def test_check_quote_provenance_flags_fabricated_qa_quote(tmp_path):
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: Reporting first.
+        """,
+        qa="""
+            ---
+            source: normalized.md
+            chunks_processed: 1
+            total_qa: 1
+            dropped: 0
+            ---
+
+            ### Q1 — Title (lens: problem in life)
+            **Answer:** ans.
+            **Confidence:** grounded
+            **Chunk:** 1
+            **Quotes:**
+            - Priya: "this phrase does not appear in the transcript"
+        """,
+    )
+    violations = check_quote_provenance(folder)
+    assert any("Q1" in v.message for v in violations)
+
+
+def test_check_ticket_cluster_counts_passes_when_balanced(tmp_path):
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: hi.
+        """,
+        clusters="""
+            ---
+            total_clusters: 2
+            unclustered_qa: 0
+            ---
+
+            ## C1 — Theme (suggested type: feature)
+            **Q&A:** Q1
+            ## C2 — Other (suggested type: feature)
+            **Q&A:** Q2
+        """,
+        dropped="""
+            # Dropped clusters
+
+            - C2 — dropped because no behavioural evidence.
+        """,
+        tickets={
+            "01-a.md": """
+                ---
+                type: feature
+                priority_hint: medium
+                source_meeting: x
+                cluster_id: C1
+                ---
+
+                ## Description
+                > Priya: "hi."
+
+                ## Acceptance criteria
+                - [ ] (inferred) Something.
+            """,
+        },
+    )
+    assert check_ticket_cluster_counts(folder) == []
+
+
+def test_check_ticket_cluster_counts_flags_imbalance(tmp_path):
+    folder = _scaffold_meeting(
+        tmp_path,
+        """
+        ---
+        meeting_slug: x
+        participants: [Priya]
+        chunks: 1
+        format_warning: null
+        ---
+
+        <!-- chunk 1/1 -->
+        Priya: hi.
+        """,
+        clusters="""
+            ---
+            total_clusters: 3
+            unclustered_qa: 0
+            ---
+
+            ## C1 — A (suggested type: feature)
+            **Q&A:** Q1
+            ## C2 — B (suggested type: feature)
+            **Q&A:** Q2
+            ## C3 — C (suggested type: feature)
+            **Q&A:** Q3
+        """,
+        tickets={
+            "01-a.md": """
+                ---
+                type: feature
+                priority_hint: medium
+                source_meeting: x
+                cluster_id: C1
+                ---
+
+                ## Description
+                > Priya: "hi."
+
+                ## Acceptance criteria
+                - [ ] (inferred) Something.
+            """,
+        },
+    )
+    violations = check_ticket_cluster_counts(folder)
+    assert any("ticket" in v.message.lower() and "cluster" in v.message.lower() for v in violations)
