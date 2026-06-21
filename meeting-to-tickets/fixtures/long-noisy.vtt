@@ -1,0 +1,119 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.000
+Alice: Welcome back, Priya. Two things on the agenda: reporting follow-ups and a question about access control.
+
+00:00:06.000 --> 00:00:15.000
+Priya: Reporting first. The CSV export from last week works, but it only includes the current page — not the whole filtered view.
+
+00:00:15.000 --> 00:00:24.000
+Alice: Got it. And how often does that come up?
+Priya: Every export. I end up downloading three or four pages and stitching them.
+
+00:00:24.000 --> 00:00:32.000
+Alice: Have you tried working around it any other way?
+
+00:00:32.000 --> 00:00:42.000
+Priya: I tried using the API endpoint directly last Tuesday. It returned everything, but the column order was wrong so finance rejected it.
+
+00:00:42.000 --> 00:00:51.000
+Alice: Finance rejected the file because of column order? Walk me through that.
+
+00:00:51.000 --> 00:01:02.000
+Priya: They have a macro that expects columns A through M in a specific order. If the header row doesn't match, the macro crashes.
+
+00:01:02.000 --> 00:01:11.000
+Alice: So we need the export to honor that column order. Do you have the spec for it?
+
+00:01:11.000 --> 00:01:20.000
+Priya: I can get it. I'll forward the template spreadsheet after this call.
+
+00:01:20.000 --> 00:01:30.000
+Alice: Perfect. Also — is this just your team or is every region doing the same stitch-and-merge?
+
+00:01:30.000 --> 00:01:42.000
+Priya: APAC does it too. I found out last month when I was on a call with their ops lead. She spends every Friday on the same thing.
+
+00:01:42.000 --> 00:01:52.000
+Alice: Okay, so this is wider than one team. That changes the priority a bit. Let me note that — multi-region impact, same workaround.
+
+00:01:52.000 --> 00:02:03.000
+Priya: Right. And if you're building the full-view export, please make sure it respects the active filters. Last time we got an export it dumped everything regardless of filters.
+
+00:02:03.000 --> 00:02:13.000
+Alice: Filter-aware export, correct column order, full view not just current page. Anything else on reporting?
+
+00:02:13.000 --> 00:02:24.000
+Priya: One more — scheduled exports would be a huge win. Right now I have a calendar reminder every Monday. If the system could just email the CSV at 8am, I'd save an hour a week.
+
+00:02:24.000 --> 00:02:34.000
+Alice: Scheduled delivery to email. Got it. Is a fixed time okay or does it need to be configurable?
+
+00:02:34.000 --> 00:02:44.000
+Priya: Configurable would be better. APAC is in a different timezone so they'd want a different slot.
+
+00:02:44.000 --> 00:02:55.000
+Alice: Makes sense. Okay, let's shift to access control. You mentioned last week you hit a wall trying to provision a new team member.
+
+00:02:55.000 --> 00:03:06.000
+Priya: Yeah. Jess joined two Mondays ago. I went to add her to the reporting group and the button was greyed out. I had to file a ticket with IT.
+
+00:03:06.000 --> 00:03:17.000
+Alice: How long did that take?
+
+00:03:17.000 --> 00:03:27.000
+Priya: Four days. Jess couldn't see anything for four days. It came up in her onboarding survey — she rated "access to tools" as her lowest score.
+
+00:03:27.000 --> 00:03:38.000
+Alice: Four days with no dashboard access during onboarding. And this wasn't a one-off?
+
+00:03:38.000 --> 00:03:50.000
+Priya: No, same thing happened with Marcus two months ago. And with the contractor we brought on in February — she left before IT finished the provisioning.
+
+00:03:50.000 --> 00:04:01.000
+Alice: So you've seen this three times in six months. What would self-serve provisioning need to look like for you to trust it?
+
+00:04:01.000 --> 00:04:12.000
+Priya: I need to be able to add someone to a group myself, see it take effect immediately, and get an audit log I can show compliance.
+
+00:04:12.000 --> 00:04:23.000
+Alice: Immediate effect, audit log for compliance. What groups can you currently manage on your own?
+
+00:04:23.000 --> 00:04:34.000
+Priya: None. Everything goes through IT. Even removing someone who left the company — I file a ticket and then cross my fingers.
+
+00:04:34.000 --> 00:04:45.000
+Alice: That's a real risk. Someone who leaves the company could still have access until the ticket is resolved.
+
+00:04:45.000 --> 00:04:56.000
+Priya: Exactly. We had an incident in Q1 where a contractor's account was still active six weeks after they finished. Security flagged it.
+
+00:04:56.000 --> 00:05:07.000
+Alice: Okay. So the deprovisioning case is at least as important as the provisioning case, maybe more so from a security angle.
+
+00:05:07.000 --> 00:05:18.000
+Priya: Agreed. If I could at least disable an account myself immediately and then let IT clean it up later, that would cover the risk.
+
+00:05:18.000 --> 00:05:29.000
+Alice: Disable-immediately with async cleanup. I like that. What's the compliance requirement — do you need the audit log within a certain time window?
+
+00:05:29.000 --> 00:05:40.000
+Priya: Our policy says the access change has to be logged within 24 hours. Currently there's no log at all on our end — IT keeps theirs separately.
+
+00:05:40.000 --> 00:05:51.000
+Alice: No unified log. So right now if compliance asks, you'd have to request IT's logs?
+
+00:05:51.000 --> 00:06:02.000
+Priya: Yes, and that took three days last time. We almost missed a compliance window.
+
+00:06:02.000 --> 00:06:12.000
+Alice: Good to know. Let me summarize what I've heard: full-view filter-aware export, correct column order, scheduled email delivery with configurable time zones, self-serve provisioning and deprovisioning with immediate effect, and a unified audit log.
+
+00:06:12.000 --> 00:06:22.000
+Priya: That's it. Oh — one last thing. Can the audit log be exportable too? Our compliance team wants it as a spreadsheet, not a UI.
+
+00:06:22.000 --> 00:06:30.000
+Alice: Audit log exportable as a spreadsheet. Noted. Thanks Priya, this was really helpful.
+
+00:06:30.000 --> 00:06:38.000
+Priya: Thanks Alice. Looking forward to seeing the mock-ups.
