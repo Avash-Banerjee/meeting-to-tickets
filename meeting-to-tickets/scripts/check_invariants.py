@@ -109,14 +109,47 @@ def check_qa(path: pathlib.Path) -> List[Violation]:
         if not quote_lines:
             violations.append(Violation(path, f"qa.md {qa_id}: Quotes block has zero quotes"))
 
+    dropped_entries = []
     for line in dropped_body.splitlines():
         s = line.strip()
         if not s.startswith("- Q "):
             continue
+        dropped_entries.append(s)
         if " — " not in s:
             violations.append(Violation(path, f"qa.md dropped entry missing reason: {s}"))
 
+    declared_total = frontmatter.get("total_qa")
+    if isinstance(declared_total, int) and declared_total != len(blocks):
+        violations.append(
+            Violation(
+                path,
+                f"qa.md frontmatter total_qa={declared_total} does not match {len(blocks)} Q&A blocks found",
+            )
+        )
+
+    declared_dropped = frontmatter.get("dropped")
+    if isinstance(declared_dropped, int) and declared_dropped != len(dropped_entries):
+        violations.append(
+            Violation(
+                path,
+                f"qa.md frontmatter dropped count={declared_dropped} does not match {len(dropped_entries)} Dropped entries found",
+            )
+        )
+
     return violations
+
+
+def collect_qa_ids(path: pathlib.Path) -> set[str]:
+    """Return the set of Q-ids declared in a qa.md file (e.g. {'Q1', 'Q2'})."""
+    if not path.exists():
+        return set()
+    text = path.read_text()
+    _, body = _split_frontmatter(text)
+    ids: set[str] = set()
+    for m in _QA_HEADER_RE.finditer(body):
+        token = m.group(0).split("—")[0].strip().split()[-1]
+        ids.add(token)
+    return ids
 
 
 REQUIRED_CLUSTERS_KEYS = {"total_clusters", "unclustered_qa"}
@@ -125,10 +158,24 @@ ALLOWED_TYPES = {"feature", "task", "problem"}
 ALLOWED_PRIORITIES = {"low", "medium", "high"}
 
 
-_CLUSTER_HEADER_RE = re.compile(r"^## C\d+ — .+\(suggested type: ([a-z]+)\)$", re.MULTILINE)
+_CLUSTER_HEADER_RE = re.compile(r"^## C(\d+) — .+\(suggested type: ([a-z]+)\)$", re.MULTILINE)
+_QA_REF_LINE_RE = re.compile(r"^\s*\*\*Q&A:\*\*\s*(.+)$", re.MULTILINE)
+_QA_ID_RE = re.compile(r"Q\d+")
 
 
-def check_clusters(path: pathlib.Path) -> List[Violation]:
+def _split_cluster_blocks(body: str) -> list[tuple[str, str]]:
+    r"""Return [(cluster_id, block_text), ...] for each `## C\d+` block in body."""
+    headers = list(_CLUSTER_HEADER_RE.finditer(body))
+    blocks: list[tuple[str, str]] = []
+    for i, m in enumerate(headers):
+        start = m.start()
+        end = headers[i + 1].start() if i + 1 < len(headers) else len(body)
+        cluster_id = f"C{m.group(1)}"
+        blocks.append((cluster_id, body[start:end]))
+    return blocks
+
+
+def check_clusters(path: pathlib.Path, qa_ids: set[str] | None = None) -> List[Violation]:
     text = path.read_text()
     frontmatter, body = _split_frontmatter(text)
     violations: list[Violation] = []
@@ -141,11 +188,26 @@ def check_clusters(path: pathlib.Path) -> List[Violation]:
         violations.append(Violation(path, f"clusters.md frontmatter missing required key: {key}"))
 
     for m in _CLUSTER_HEADER_RE.finditer(body):
-        t = m.group(1)
+        t = m.group(2)
         if t not in ALLOWED_TYPES:
             violations.append(
                 Violation(path, f"clusters.md cluster has invalid suggested type: {t!r}")
             )
+
+    if qa_ids is not None:
+        for cluster_id, block in _split_cluster_blocks(body):
+            qa_line_match = _QA_REF_LINE_RE.search(block)
+            if qa_line_match is None:
+                continue
+            referenced = _QA_ID_RE.findall(qa_line_match.group(1))
+            for ref in referenced:
+                if ref not in qa_ids:
+                    violations.append(
+                        Violation(
+                            path,
+                            f"clusters.md {cluster_id} references unknown Q&A id: {ref}",
+                        )
+                    )
 
     return violations
 
@@ -196,10 +258,12 @@ def main(argv: list[str]) -> int:
     violations: list[Violation] = []
     if (folder / "normalized.md").exists():
         violations.extend(check_normalized(folder / "normalized.md"))
+    qa_ids: set[str] | None = None
     if (folder / "qa.md").exists():
         violations.extend(check_qa(folder / "qa.md"))
+        qa_ids = collect_qa_ids(folder / "qa.md")
     if (folder / "clusters.md").exists():
-        violations.extend(check_clusters(folder / "clusters.md"))
+        violations.extend(check_clusters(folder / "clusters.md", qa_ids=qa_ids))
     tickets_dir = folder / "tickets"
     if tickets_dir.is_dir():
         for ticket in sorted(tickets_dir.glob("*.md")):

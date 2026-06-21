@@ -158,6 +158,74 @@ def test_check_clusters_passes_on_clean_input(tmp_path):
     assert check_clusters(p) == []
 
 
+def test_check_qa_flags_total_qa_mismatch(tmp_path):
+    # frontmatter claims 2 Q&As but only 1 is present in the body.
+    p = _write(tmp_path, "qa.md", """
+        ---
+        source: normalized.md
+        chunks_processed: 1
+        total_qa: 2
+        dropped: 0
+        ---
+
+        ### Q1 — Title (lens: problem in life)
+        **Answer:** ans.
+        **Confidence:** grounded
+        **Chunk:** 1
+        **Quotes:**
+        - Priya: "verbatim text"
+    """)
+    violations = check_qa(p)
+    assert any("total_qa" in v.message for v in violations)
+
+
+def test_check_qa_flags_dropped_count_mismatch(tmp_path):
+    # frontmatter claims dropped=2 but the Dropped section has one entry.
+    p = _write(tmp_path, "qa.md", """
+        ---
+        source: normalized.md
+        chunks_processed: 1
+        total_qa: 0
+        dropped: 2
+        ---
+
+        ## Dropped
+        - Q (proposed): "single entry" — reason given here.
+    """)
+    violations = check_qa(p)
+    assert any("dropped" in v.message.lower() and "count" in v.message.lower() for v in violations)
+
+
+def test_check_clusters_flags_unknown_qa_reference(tmp_path):
+    # Cluster references Q7 but qa.md has no Q7 — when called with the qa-id set.
+    p = _write(tmp_path, "clusters.md", """
+        ---
+        total_clusters: 1
+        unclustered_qa: 0
+        ---
+
+        ## C1 — Theme (suggested type: feature)
+        **Rationale:** because.
+        **Q&A:** Q1, Q7
+    """)
+    violations = check_clusters(p, qa_ids={"Q1"})
+    assert any("Q7" in v.message for v in violations)
+
+
+def test_check_clusters_passes_when_qa_ids_match(tmp_path):
+    p = _write(tmp_path, "clusters.md", """
+        ---
+        total_clusters: 1
+        unclustered_qa: 0
+        ---
+
+        ## C1 — Theme (suggested type: feature)
+        **Rationale:** because.
+        **Q&A:** Q1, Q2
+    """)
+    assert check_clusters(p, qa_ids={"Q1", "Q2"}) == []
+
+
 def test_check_clusters_flags_bad_type(tmp_path):
     p = _write(tmp_path, "clusters.md", """
         ---
