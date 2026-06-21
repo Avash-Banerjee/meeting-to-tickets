@@ -1,0 +1,13 @@
+# Per-meeting runtime outputs (user data — do not commit unless explicitly demoed)
+meetings/*/
+!meetings/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
