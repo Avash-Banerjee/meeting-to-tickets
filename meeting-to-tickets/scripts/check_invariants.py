@@ -14,7 +14,7 @@ from typing import List
 import yaml
 
 
-REQUIRED_NORMALIZED_KEYS = {"meeting_slug", "date", "participants", "chunks", "format_warning"}
+REQUIRED_NORMALIZED_KEYS = {"meeting_slug", "participants", "chunks", "format_warning"}
 
 
 @dataclasses.dataclass(frozen=True)
