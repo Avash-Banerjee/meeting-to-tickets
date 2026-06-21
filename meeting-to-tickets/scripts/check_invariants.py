@@ -162,13 +162,15 @@ def check_ticket(path: pathlib.Path) -> List[Violation]:
     for key in sorted(missing):
         violations.append(Violation(path, f"ticket frontmatter missing required key: {key}"))
 
-    t = frontmatter.get("type")
-    if t not in ALLOWED_TYPES:
-        violations.append(Violation(path, f"ticket has invalid type: {t!r}"))
+    if "type" not in missing:
+        t = frontmatter.get("type")
+        if t not in ALLOWED_TYPES:
+            violations.append(Violation(path, f"ticket has invalid type: {t!r}"))
 
-    pri = frontmatter.get("priority_hint")
-    if pri not in ALLOWED_PRIORITIES:
-        violations.append(Violation(path, f"ticket has invalid priority_hint: {pri!r}"))
+    if "priority_hint" not in missing:
+        pri = frontmatter.get("priority_hint")
+        if pri not in ALLOWED_PRIORITIES:
+            violations.append(Violation(path, f"ticket has invalid priority_hint: {pri!r}"))
 
     if "## Description" not in body:
         violations.append(Violation(path, "ticket missing Description section"))

@@ -58,7 +58,7 @@ def test_check_normalized_flags_missing_chunk_markers_when_multi_chunk(tmp_path)
     assert any("chunk" in v.message.lower() for v in violations)
 
 
-def test_check_normalized_flags_invalid_yaml(tmp_path):
+def test_check_normalized_flags_non_integer_chunks(tmp_path):
     p = _write(tmp_path, "normalized.md", """
         ---
         meeting_slug: x
@@ -72,6 +72,20 @@ def test_check_normalized_flags_invalid_yaml(tmp_path):
     """)
     violations = check_normalized(p)
     assert any("chunks" in v.message for v in violations)
+
+
+def test_check_normalized_flags_unparseable_yaml(tmp_path):
+    # Mismatched quote inside an unquoted scalar produces a YAMLError.
+    p = _write(tmp_path, "normalized.md", """
+        ---
+        meeting_slug: "x
+        chunks: 1
+        ---
+
+        Alice: hello.
+    """)
+    violations = check_normalized(p)
+    assert any("no parseable YAML frontmatter" in v.message for v in violations)
 
 
 from check_invariants import check_qa, check_clusters, check_ticket
@@ -201,6 +215,30 @@ def test_check_ticket_flags_missing_blockquote(tmp_path):
     """)
     violations = check_ticket(p)
     assert any("quote" in v.message.lower() for v in violations)
+
+
+def test_check_ticket_missing_key_does_not_double_report(tmp_path):
+    # `type` is missing entirely — we should see ONE violation about the
+    # missing key, not also a "invalid type: None" follow-up.
+    p = _write(tmp_path, "01-x.md", """
+        ---
+        priority_hint: medium
+        source_meeting: clean-short
+        cluster_id: C1
+        ---
+
+        # Title
+
+        ## Description
+        > Priya: "verbatim quote"
+
+        ## Acceptance criteria
+        - [ ] (inferred) Criterion one
+    """)
+    violations = check_ticket(p)
+    type_messages = [v.message for v in violations if "type" in v.message]
+    assert len(type_messages) == 1
+    assert "missing required key: type" in type_messages[0]
 
 
 def test_check_ticket_flags_bad_type(tmp_path):
