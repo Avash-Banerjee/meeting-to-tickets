@@ -629,6 +629,70 @@ def test_check_ticket_cluster_counts_passes_when_balanced(tmp_path):
     assert check_ticket_cluster_counts(folder) == []
 
 
+def test_check_intake_round_trip_passes_when_words_preserved(tmp_path):
+    from check_invariants import check_intake_round_trip
+
+    (tmp_path / "source.txt").write_text(
+        "Date: 2026-06-19\n\n"
+        "Alice: hello there friend, how are you today\n"
+        "Bob: pretty good thanks for asking\n"
+    )
+    (tmp_path / "normalized.md").write_text(
+        "---\n"
+        "meeting_slug: x\n"
+        "date: 2026-06-19\n"
+        "participants: [Alice, Bob]\n"
+        "chunks: 1\n"
+        "format_warning: null\n"
+        "---\n\n"
+        "<!-- chunk 1/1 -->\n"
+        "<!-- t=00:00 -->\n"
+        "Alice: hello there friend, how are you today\n"
+        "<!-- t=00:05 -->\n"
+        "Bob: pretty good thanks for asking\n"
+    )
+    assert check_intake_round_trip(tmp_path) == []
+
+
+def test_check_intake_round_trip_flags_silent_content_loss(tmp_path):
+    from check_invariants import check_intake_round_trip
+
+    (tmp_path / "source.txt").write_text("Alice: " + "word " * 100)
+    (tmp_path / "normalized.md").write_text(
+        "---\n"
+        "meeting_slug: x\n"
+        "participants: [Alice]\n"
+        "chunks: 1\n"
+        "format_warning: null\n"
+        "---\n\n"
+        "<!-- chunk 1/1 -->\n"
+        "Alice: " + "word " * 10 + "\n"
+    )
+    violations = check_intake_round_trip(tmp_path)
+    assert any("intake round-trip" in v.message for v in violations)
+
+
+def test_check_intake_round_trip_skips_decorative_separators_and_header(tmp_path):
+    """The dental clinic transcript had `========` separators and a Date/
+    Duration/Participants header — the word counter should skip them so
+    they don't inflate the source count."""
+    from check_invariants import _word_count
+
+    src = (
+        "============================================================\n"
+        "Discovery Call: Mehta Dental Care\n"
+        "Date: 2026-06-18\n"
+        "Duration: 58 minutes\n"
+        "Participants:\n"
+        "  - Dr. Mehta (Principal Dentist)\n"
+        "\n"
+        "[00:00] Arjun: real content begins here\n"
+    )
+    assert _word_count(src) > 0
+    # Header lines are stripped; counter < naive split.
+    assert _word_count(src) < len(src.split())
+
+
 def test_check_ticket_cluster_counts_flags_imbalance(tmp_path):
     folder = _scaffold_meeting(
         tmp_path,

@@ -457,6 +457,91 @@ def check_ticket(path: pathlib.Path) -> List[Violation]:
     return violations
 
 
+ROUND_TRIP_WORD_RATIO_FLOOR = 0.95
+
+
+def _word_count(text: str) -> int:
+    """Count whitespace-separated tokens, ignoring frontmatter, HTML comments,
+    and header decoration lines (===, ---, leading metadata before the body)."""
+    # Strip YAML frontmatter
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            text = text[end + 5 :]
+    # Strip HTML comments (`<!-- ... -->`), including chunk and timestamp markers.
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    # Strip decorative separator lines (===, ---).
+    text = re.sub(r"^[=\-]{3,}\s*$", "", text, flags=re.MULTILINE)
+    # Strip likely-header lines (Date:, Participants:, Duration:, etc.) at the
+    # very start, before the body.
+    lines = text.splitlines()
+    body_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        label_match = re.match(r"^[A-Z][A-Za-z .'-]+:", stripped)
+        if label_match and stripped.split(":", 1)[0].strip().lower() in {
+            "date",
+            "duration",
+            "participants",
+            "participant",
+            "meeting",
+            "title",
+            "subject",
+            "recording",
+            "transcript",
+            "time",
+        }:
+            body_start = i + 1
+            continue
+        # First non-header, non-blank, non-separator line: stop walking header.
+        break
+    text = "\n".join(lines[body_start:])
+    return len(text.split())
+
+
+def check_intake_round_trip(
+    folder: pathlib.Path,
+    floor: float = ROUND_TRIP_WORD_RATIO_FLOOR,
+) -> List[Violation]:
+    """Compare word counts between `source.*` and `normalized.md`. If
+    intake silently dropped content, the ratio will fall below the floor.
+
+    This is the deterministic gate that catches the failure mode an LLM
+    reviewer would otherwise be the only line of defense against —
+    free, runs every time, catches what the LLM-driven intake used to risk."""
+    normalized = folder / "normalized.md"
+    if not normalized.exists():
+        return []
+    sources = sorted(p for p in folder.glob("source.*") if p.is_file())
+    if not sources:
+        return []
+    if len(sources) > 1:
+        return [
+            Violation(
+                folder,
+                f"intake round-trip: multiple source.* files present: {[s.name for s in sources]}",
+            )
+        ]
+    source = sources[0]
+    src_words = _word_count(source.read_text())
+    norm_words = _word_count(normalized.read_text())
+    if src_words == 0:
+        return []
+    ratio = norm_words / src_words
+    if ratio < floor:
+        return [
+            Violation(
+                folder,
+                f"intake round-trip: normalized.md has {norm_words} words "
+                f"vs source {src_words} (ratio {ratio:.2f} < {floor:.2f}); "
+                "content may have been silently dropped during intake",
+            )
+        ]
+    return []
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print("usage: check_invariants.py <meeting_folder>", file=sys.stderr)
@@ -476,6 +561,7 @@ def main(argv: list[str]) -> int:
         for ticket in sorted(tickets_dir.glob("*.md")):
             violations.extend(check_ticket(ticket))
     # Cross-file checks (need access to the whole meeting folder).
+    violations.extend(check_intake_round_trip(folder))
     violations.extend(check_quote_provenance(folder))
     violations.extend(check_ticket_cluster_counts(folder))
     for v in violations:
