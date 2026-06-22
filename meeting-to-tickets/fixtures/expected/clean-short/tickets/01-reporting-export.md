@@ -8,6 +8,9 @@ cluster_id: C1
 
 # Reporting export to CSV/XLSX
 
+## Business goal
+Unblock finance's monthly close by removing the weekly screenshot-and-retype reconciliation cycle that lands on a single ops person. The strategic signal is repeated cross-team friction (finance has independently asked twice for a CSV they can drop into their model) — not a personal preference but a recurring interdepartmental dependency.
+
 ## Description
 
 **The problem in context.**

@@ -8,6 +8,9 @@ cluster_id: C2
 
 # Self-serve access control with audit log
 
+## Business goal
+Close a named-and-measured compliance gap (24-hour logging policy currently unmet, confirmed Q1 security incident with a six-week access overhang) and remove the IT-ticket bottleneck on time-sensitive lifecycle changes. The strategic signal is that the existing manual path has produced both audited risk and onboarding-survey damage; the cost is no longer hypothetical.
+
 ## Description
 
 **The problem in context.**

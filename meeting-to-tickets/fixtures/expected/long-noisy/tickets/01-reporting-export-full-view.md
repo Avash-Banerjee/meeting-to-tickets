@@ -8,6 +8,9 @@ cluster_id: C1
 
 # Reporting export: full-view, filter-aware, scheduled delivery
 
+## Business goal
+Eliminate a confirmed multi-team weekly export tax — Priya's team plus APAC ops both repeat the same manual stitch — and unblock finance's macro-driven close. The strategic signal is cross-region reach (APAC discovered independently last month) combined with a downstream consumer (finance) whose tooling depends on the export's exact shape.
+
 ## Description
 
 **The problem in context.**

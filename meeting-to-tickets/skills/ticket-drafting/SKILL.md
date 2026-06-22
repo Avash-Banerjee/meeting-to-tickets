@@ -33,6 +33,9 @@ cluster_id: C<n>
 
 # <Ticket title — same as cluster theme name>
 
+## Business goal
+<One short paragraph naming the strategic outcome this ticket exists to move. Distinct from the per-feature operational cost captured under "Cost of doing nothing" in Description. Examples: "Reduce front-desk attrition risk by removing the constant phone-interruption load from Priya"; "Stop bleeding long-term-patient revenue to competitors with 7-day phone coverage"; "Unblock finance month-end close." Omit this section entirely if the transcript provides no clear strategic motivation beyond the operational pain itself.>
+
 ## Description
 
 **The problem in context.**
@@ -77,6 +80,7 @@ cluster_id: C<n>
 
 ## Rules
 - A sub-section under `## Description` is **omitted entirely** when the transcript has nothing for that lens. Do not pad with filler.
+- `## Business goal` is **optional**. Include it only when the transcript names (explicitly or by clear implication) a strategic outcome distinct from the per-feature operational pain. When the only motivation is the operational pain itself, omit the section — duplicating "Cost of doing nothing" under a different heading dilutes both. When the transcript does name a strategic motivation, the Business goal must trace back to a Q&A or to a named entity / commitment in `outline.md`; do not invent strategic context the call did not establish.
 - Every quote is **verbatim**, copied exactly from `qa.md` (which copied from `normalized.md`). No paraphrase, no ellipsis-rewrite.
 - Acceptance criteria that don't trace to a quote are prefixed `(inferred)`.
 - Infer `component` from the cluster theme when the transcript names a product surface (e.g. "reporting", "onboarding", "billing"). Omit the field when no component is clearly identifiable — do not guess.
