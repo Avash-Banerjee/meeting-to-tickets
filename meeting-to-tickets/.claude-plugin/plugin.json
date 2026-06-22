@@ -1,7 +1,7 @@
 {
   "name": "meeting-to-tickets",
-  "version": "1.0.0",
-  "description": "Turn meeting transcripts into DevRev-ready ticket drafts with Mom's-Test rigor. Deterministic Python intake + LLM-driven extraction/clustering/drafting, with invariant checks that enforce verbatim-quote provenance and AC traceability.",
+  "version": "2.0.0",
+  "description": "Turn meeting transcripts into DevRev-ready ticket drafts with Mom's-Test rigor. Seven-stage pipeline: deterministic Python intake → meeting outline → per-chunk Mom's-Test extraction → cross-chunk reconciler → theme clustering → ticket drafting (PM-review markdown) → DevRev compactor (engineering-handoff markdown). Invariant checker enforces verbatim-quote provenance, AC traceability, walk-back coverage, and DevRev-canonical field shape.",
   "author": {
     "name": "Sierra"
   },
@@ -11,6 +11,8 @@
     "devrev",
     "moms-test",
     "meeting-notes",
-    "discovery-calls"
+    "discovery-calls",
+    "requirements-extraction",
+    "claude-skills"
   ]
 }
