@@ -432,6 +432,68 @@ def check_walk_back_coverage(meeting_folder: pathlib.Path) -> List[Violation]:
     return []
 
 
+_TICKET_SECTION_HEADERS = (
+    "## Business goal",
+    "## Description",
+    "## Acceptance criteria",
+    "## Priority hint",
+    "## Open questions",
+    "## Evidence",
+)
+
+_SCAFFOLDING_RE = re.compile(r"\b(?:C\d+|Q\d+|chunk \d+)\b")
+
+
+def check_no_internal_scaffolding_in_ticket_prose(path: pathlib.Path) -> List[Violation]:
+    """Cluster ids, Q-ids, and chunk indices are internal scaffolding — they
+    are allowed only in the YAML frontmatter and the `## Evidence` section.
+    Flag any occurrence in user-readable prose (Business goal, Description,
+    Acceptance criteria, Priority hint, Open questions)."""
+    text = path.read_text()
+    _, body = _split_frontmatter(text)
+    violations: list[Violation] = []
+
+    # Split body into sections at each H2. We only inspect named sections we
+    # treat as user-facing; the Evidence section is exempt.
+    section_positions: list[tuple[str, int, int]] = []
+    matches = list(re.finditer(r"^(## .+)$", body, re.MULTILINE))
+    for i, m in enumerate(matches):
+        header = m.group(1).strip()
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+        section_positions.append((header, start, end))
+
+    user_facing_headers = {
+        "## Business goal",
+        "## Description",
+        "## Acceptance criteria",
+        "## Priority hint",
+        "## Open questions",
+    }
+
+    for header, start, end in section_positions:
+        if header not in user_facing_headers:
+            continue
+        section_text = body[start:end]
+        # Strip blockquote lines (verbatim transcript quotes — these may
+        # legitimately contain "Q1" meaning calendar Q1, "C-suite", etc.)
+        # before scanning for scaffolding leakage in the drafter's own prose.
+        non_quote_lines = "\n".join(
+            ln for ln in section_text.splitlines() if not ln.lstrip().startswith(">")
+        )
+        for m in _SCAFFOLDING_RE.finditer(non_quote_lines):
+            token = m.group(0)
+            violations.append(
+                Violation(
+                    path,
+                    f"ticket internal scaffolding leaked into {header}: {token!r} "
+                    f"(scaffolding allowed only in frontmatter and `## Evidence`)",
+                )
+            )
+
+    return violations
+
+
 def check_ticket_cluster_counts(meeting_folder: pathlib.Path) -> List[Violation]:
     """Cross-check ticket count against clusters minus cluster-level drops."""
     violations: list[Violation] = []
@@ -717,6 +779,7 @@ def main(argv: list[str]) -> int:
     if tickets_dir.is_dir():
         for ticket in sorted(tickets_dir.glob("*.md")):
             violations.extend(check_ticket(ticket))
+            violations.extend(check_no_internal_scaffolding_in_ticket_prose(ticket))
     # Cross-file checks (need access to the whole meeting folder).
     violations.extend(check_intake_round_trip(folder))
     violations.extend(check_qa_chunks_present(folder))

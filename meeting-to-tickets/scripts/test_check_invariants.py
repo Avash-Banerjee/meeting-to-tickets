@@ -904,6 +904,201 @@ def test_check_qa_flags_walk_back_coverage_gaps_in_qa_body(tmp_path):
     assert any("uncovered walk-back" in v.message.lower() for v in violations)
 
 
+def test_check_no_internal_scaffolding_passes_clean_ticket(tmp_path):
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C3
+        ---
+
+        # Some title
+
+        ## Business goal
+        Strategic outcome described without internal jargon.
+
+        ## Description
+        Body without scaffolding references.
+
+        > Speaker: "verbatim"
+
+        ## Acceptance criteria
+        - [ ] Criterion one.
+
+        ## Evidence
+        - qa.md → Q1, Q2, Q5
+        - normalized.md chunk 1
+    """).lstrip())
+    assert check_no_internal_scaffolding_in_ticket_prose(p) == []
+
+
+def test_check_no_internal_scaffolding_flags_cluster_id_in_business_goal(tmp_path):
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C3
+        ---
+
+        # Title
+
+        ## Business goal
+        Unblocks C1 which is the headline feature.
+
+        ## Description
+        Body.
+
+        > Speaker: "verbatim"
+
+        ## Acceptance criteria
+        - [ ] Criterion.
+
+        ## Evidence
+        - qa.md → Q1
+    """).lstrip())
+    violations = check_no_internal_scaffolding_in_ticket_prose(p)
+    assert any("Business goal" in v.message and "'C1'" in v.message for v in violations)
+
+
+def test_check_no_internal_scaffolding_flags_q_id_in_description(tmp_path):
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C1
+        ---
+
+        # Title
+
+        ## Business goal
+        Strategic outcome.
+
+        ## Description
+        This builds on Q5's evidence about cost.
+
+        > Speaker: "verbatim"
+
+        ## Acceptance criteria
+        - [ ] Criterion.
+
+        ## Evidence
+        - qa.md → Q1, Q5
+    """).lstrip())
+    violations = check_no_internal_scaffolding_in_ticket_prose(p)
+    assert any("Description" in v.message and "'Q5'" in v.message for v in violations)
+
+
+def test_check_no_internal_scaffolding_allows_evidence_section(tmp_path):
+    """The Evidence section is explicitly exempt — that's where Q-ids belong."""
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C2
+        ---
+
+        # Title
+
+        ## Business goal
+        Strategic outcome.
+
+        ## Description
+        Clean prose.
+
+        > Speaker: "verbatim"
+
+        ## Acceptance criteria
+        - [ ] Criterion.
+
+        ## Evidence
+        - qa.md → Q1, Q2, Q5, Q12
+        - normalized.md chunk 1
+        - normalized.md chunk 2
+    """).lstrip())
+    assert check_no_internal_scaffolding_in_ticket_prose(p) == []
+
+
+def test_check_no_internal_scaffolding_allows_q1_inside_verbatim_blockquote(tmp_path):
+    """Transcript quotes are verbatim and may legitimately contain "Q1"
+    (calendar Q1), "C-suite", etc. The check exempts blockquote lines."""
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C2
+        ---
+
+        # Title
+
+        ## Business goal
+        Strategic outcome, no scaffolding.
+
+        ## Description
+        Body without scaffolding in the drafter's prose.
+
+        > Priya: "We had an incident in Q1 where a contractor's account was still active."
+
+        ## Acceptance criteria
+        - [ ] Criterion.
+
+        ## Evidence
+        - qa.md → Q1
+    """).lstrip())
+    assert check_no_internal_scaffolding_in_ticket_prose(p) == []
+
+
+def test_check_no_internal_scaffolding_allows_frontmatter(tmp_path):
+    """cluster_id: C3 in frontmatter is fine — that's where it belongs."""
+    from check_invariants import check_no_internal_scaffolding_in_ticket_prose
+
+    p = tmp_path / "ticket.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        type: feature
+        priority_hint: medium
+        source_meeting: x
+        cluster_id: C7
+        ---
+
+        # Title
+
+        ## Business goal
+        Strategic outcome.
+
+        ## Description
+        Clean.
+
+        > Speaker: "verbatim"
+
+        ## Acceptance criteria
+        - [ ] Criterion.
+
+        ## Evidence
+        - qa.md → Q1
+    """).lstrip())
+    assert check_no_internal_scaffolding_in_ticket_prose(p) == []
+
+
 def test_check_ticket_cluster_counts_flags_imbalance(tmp_path):
     folder = _scaffold_meeting(
         tmp_path,
