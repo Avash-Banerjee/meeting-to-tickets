@@ -153,16 +153,38 @@ def _normalize_for_provenance(text: str) -> str:
     return text
 
 
-_QUOTED_SPAN_RE = re.compile(r'"([^"]+)"')
-
-
 def _extract_quoted_spans(line: str) -> list[str]:
-    """Return all double-quoted substrings within a line (curly normalized)."""
-    normalized = line.translate({
+    """Return the verbatim-quoted text within a single line.
+
+    Handles the common ticket/qa-md form:
+        - `Speaker: "quoted text"`
+        - `> Speaker: "quoted text"`
+        - `Speaker: "quoted text with \\"inner escaped\\" quotes"`
+    Curly double quotes are normalized to straight before scanning. If
+    the body after the speaker prefix is wrapped in straight `"..."`,
+    the outer pair is treated as the delimiter (so inner `"` or `\\"`
+    are preserved as content). If no outer pair is found, the entire
+    post-prefix body is returned as the span — letting the substring
+    check still catch fabricated text.
+    """
+    body = line.translate({
         ord("“"): '"',
         ord("”"): '"',
     })
-    return _QUOTED_SPAN_RE.findall(normalized)
+    # Strip leading blockquote / bullet markers.
+    body = re.sub(r"^>\s+", "", body)
+    body = re.sub(r"^-\s+", "", body)
+    # Drop the speaker prefix (anything up to the first `: `).
+    body = re.sub(r"^[^:]+:\s*", "", body)
+    body = body.strip()
+    if not body:
+        return []
+    # Outer-quoted form: trim the outer `"..."` and unescape `\"` -> `"`.
+    if len(body) >= 2 and body[0] == '"' and body[-1] == '"':
+        inner = body[1:-1]
+        inner = inner.replace('\\"', '"')
+        return [inner]
+    return [body]
 
 
 def _collect_normalized_utterances(normalized_path: pathlib.Path) -> str:
@@ -203,14 +225,8 @@ def check_quote_provenance(meeting_folder: pathlib.Path) -> List[Violation]:
             description = ticket_body.split("## Description", 1)[1]
             description = description.split("\n## ", 1)[0]
             for m in _BLOCKQUOTE_RE.finditer(description):
-                line = m.group(1)
-                spans = _extract_quoted_spans(line)
-                # If no double-quoted span found, fall back to the whole line
-                # after the speaker prefix.
-                if not spans:
-                    fallback = re.sub(r"^[^:]+:\s*", "", line).strip()
-                    if fallback:
-                        spans = [fallback]
+                # The matched group is the line content after `> `.
+                spans = _extract_quoted_spans(m.group(1))
                 for span in spans:
                     needle = _normalize_for_provenance(span)
                     if needle and needle not in haystack:
@@ -248,10 +264,6 @@ def check_quote_provenance(meeting_folder: pathlib.Path) -> List[Violation]:
                 if not s.startswith("- "):
                     continue
                 spans = _extract_quoted_spans(s)
-                if not spans:
-                    fallback = re.sub(r"^-\s*[^:]+:\s*", "", s).strip()
-                    if fallback:
-                        spans = [fallback]
                 for span in spans:
                     needle = _normalize_for_provenance(span)
                     if needle and needle not in haystack:
