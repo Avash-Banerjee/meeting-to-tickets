@@ -13,13 +13,33 @@ The `meeting-to-tickets` skill chains all four stages with checkpoints and idemp
 
 ## Install
 
-Drop the `skills/` folder where Claude Code can find skills (e.g. symlink each subfolder into `~/.claude/skills/`, or run Claude Code from this directory if it picks up project-local skills).
+This project ships in two forms — choose based on whether you want to use it or work on it.
+
+### As a Claude Code plugin (for distribution / sharing)
+
+The project root is structured as a Claude Code plugin: a `.claude-plugin/plugin.json` manifest, a `commands/call-to-ticket.md` slash command, the `skills/` skill pack, and the `scripts/` deterministic helpers.
+
+To install in any Claude Code environment:
+
+```bash
+# Either: clone into the user's plugins directory
+git clone <repo-url> ~/.claude/plugins/meeting-to-tickets
+
+# Or: install Python deps system-wide so the plugin's scripts can run
+pip install PyYAML
+```
+
+The plugin exposes one slash command: `/call-to-ticket <meeting-folder-or-transcript-path>`. Run it from any Claude Code session; the orchestrator + rigor gate run end-to-end and report tickets.
+
+### For workspace iteration (this repo, developing the pipeline)
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r scripts/requirements.txt
+pip install -r scripts/requirements-dev.txt   # includes pytest
 ```
+
+In this mode there is no plugin install — you invoke the skills directly from inside Claude Code while you're sitting in this directory. The bash invocation in `skills/transcript-intake/SKILL.md` auto-falls-back to the workspace `.venv` when `CLAUDE_PLUGIN_ROOT` is unset, so the same skill files serve both modes.
 
 ## Use
 

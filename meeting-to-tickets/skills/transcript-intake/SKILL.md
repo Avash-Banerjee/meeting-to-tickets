@@ -15,10 +15,16 @@ The script writes `<meeting_folder>/normalized.md`. No other files.
 
 ## How to invoke
 
+Path-portable form that works both when this project is installed as a Claude Code plugin (`CLAUDE_PLUGIN_ROOT` is set by the host) and during direct workspace iteration:
+
 ```bash
-cd meeting-to-tickets
-./.venv/bin/python scripts/intake.py <meeting_folder>
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+PYTHON="${PLUGIN_ROOT}/.venv/bin/python"
+[ -x "$PYTHON" ] || PYTHON=python3
+"$PYTHON" "${PLUGIN_ROOT}/scripts/intake.py" "<meeting_folder>"
 ```
+
+When installed as a plugin, the host sets `CLAUDE_PLUGIN_ROOT` to the plugin install path and the system `python3` (which must have `PyYAML` available) is used. During workspace iteration, `CLAUDE_PLUGIN_ROOT` is unset, the current directory becomes the project root, and the local `.venv` Python is preferred.
 
 Optional flags:
 - `--budget-chars N` — soft chunk budget in characters. Default `32000` (≈8000 tokens). Lower for tighter chunking; higher to keep the whole transcript in one chunk.

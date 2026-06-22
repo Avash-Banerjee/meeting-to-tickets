@@ -1,0 +1,16 @@
+{
+  "name": "meeting-to-tickets",
+  "version": "1.0.0",
+  "description": "Turn meeting transcripts into DevRev-ready ticket drafts with Mom's-Test rigor. Deterministic Python intake + LLM-driven extraction/clustering/drafting, with invariant checks that enforce verbatim-quote provenance and AC traceability.",
+  "author": {
+    "name": "Sierra"
+  },
+  "keywords": [
+    "transcripts",
+    "tickets",
+    "devrev",
+    "moms-test",
+    "meeting-notes",
+    "discovery-calls"
+  ]
+}
