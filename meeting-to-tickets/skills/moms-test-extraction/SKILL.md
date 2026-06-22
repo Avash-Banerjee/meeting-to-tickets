@@ -19,7 +19,7 @@ Write `<meeting_folder>/qa-chunks/qa-<chunk_index>.md`. Create the `qa-chunks/` 
 
 ## Use the outline as context
 Before extracting, read `outline.md`. It tells you:
-- **Named entities** introduced in other chunks. When this chunk says "that situation" or "the Banerjee case", the outline tells you who/what that is — DO NOT drop the Q&A for lack of context.
+- **Named entities** introduced in other chunks. When this chunk uses vague references like "that situation", "the case we discussed", or "that company they mentioned", the outline tells you who/what is being referenced — DO NOT drop the Q&A for lack of context.
 - **Walk-backs** declared. Apply these rules per walk-back, based on which chunk the ask and retraction live in:
   - **Both quotes in THIS chunk** → extract a single Q&A under the "Stated ask vs underlying need" lens, with BOTH the ask quote and the retraction quote in the same `**Quotes:**` block. Do not drop it.
   - **Ask is in THIS chunk, retraction in another** → extract a Q&A under the "Stated ask vs underlying need" lens with just the ask quote. Add `**Walk-back:** pending merge with chunk <N>` after the `**Confidence:**` line. The reconciler will merge it with the retraction Q&A from the other chunk.
@@ -83,4 +83,4 @@ Per-chunk Q&A numbering restarts at Q1 for each chunk — the reconciler renumbe
 - Do not pull quotes from chunks other than the one you're processing.
 
 ## Acceptance test
-After running on chunk 1 of `meetings/mehta-dental-discovery/normalized.md` (with the outline already present), the produced `meetings/mehta-dental-discovery/qa-chunks/qa-1.md` should contain grounded Q&As for: after-hours phone gap with Mrs. Banerjee evidence, WhatsApp inbox decay, no-shows + confirmation calls, DentalDesk integration, multilingual coverage, emergency triage, informal waitlist, insurance triage (with both ask AND walked-back quotes, since both are in chunk 1), Priya's morning backlog, and dropped entries for Marathi and payments (both walk-backs whose ask AND retraction are also in chunk 1).
+Against `fixtures/expected/clean-short/normalized.md` (single chunk, well-formed), the produced `qa.md` (or `qa-chunks/qa-1.md` in the per-chunk variant) should match the committed `fixtures/expected/clean-short/qa.md` in structure: every Q&A has at least one verbatim quote with speaker, confidence tags are present, and `## Dropped` records any compliments-without-behavioral-evidence the prompt encountered. Against `fixtures/expected/compliments-only/normalized.md`, the expected outcome is zero grounded Q&As and three-or-more dropped entries — that's the rigor test working as designed.

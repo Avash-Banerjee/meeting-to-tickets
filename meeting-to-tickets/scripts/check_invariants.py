@@ -494,6 +494,80 @@ def check_no_internal_scaffolding_in_ticket_prose(path: pathlib.Path) -> List[Vi
     return violations
 
 
+REQUIRED_DEVREV_KEYS = {"type", "severity", "source_meeting", "source_ticket"}
+ALLOWED_DEVREV_TYPES = {"feature_request", "task", "improvement", "bug"}
+ALLOWED_DEVREV_SEVERITIES = {"blocker", "high", "medium", "low"}
+REQUIRED_DEVREV_SECTIONS = ("## Summary", "## Acceptance criteria", "## Top evidence", "## Source")
+
+
+def check_devrev_files(meeting_folder: pathlib.Path) -> List[Violation]:
+    """Validate the devrev/ sibling files produced by `devrev-compactor`.
+
+    For each devrev/*.md:
+    - Frontmatter has required keys with valid enum values.
+    - All four required sections are present.
+    - There is a corresponding source ticket file referenced by `source_ticket`.
+    - The 1:1 mapping holds: every tickets/*.md has a matching devrev/<same-name>
+      (only when devrev/ exists at all — if devrev/ doesn't exist, no check fires
+      because the stage is optional)."""
+    devrev_dir = meeting_folder / "devrev"
+    tickets_dir = meeting_folder / "tickets"
+    violations: list[Violation] = []
+    if not devrev_dir.is_dir():
+        return violations
+
+    devrev_files = sorted(p for p in devrev_dir.glob("*.md") if not p.name.endswith(".md.draft"))
+    ticket_files = sorted(p for p in tickets_dir.glob("*.md") if not p.name.endswith(".md.draft")) if tickets_dir.is_dir() else []
+
+    # 1:1 name parity check
+    devrev_names = {p.name for p in devrev_files}
+    ticket_names = {p.name for p in ticket_files}
+    for name in ticket_names - devrev_names:
+        violations.append(
+            Violation(meeting_folder, f"devrev/ missing companion for tickets/{name}")
+        )
+    for name in devrev_names - ticket_names:
+        violations.append(
+            Violation(meeting_folder, f"devrev/{name} has no matching tickets/{name}")
+        )
+
+    # Per-file structural checks
+    for p in devrev_files:
+        text = p.read_text()
+        frontmatter, body = _split_frontmatter(text)
+        if frontmatter is None:
+            violations.append(Violation(p, "devrev file has no parseable YAML frontmatter"))
+            continue
+        missing = REQUIRED_DEVREV_KEYS - set(frontmatter.keys())
+        for key in sorted(missing):
+            violations.append(Violation(p, f"devrev frontmatter missing required key: {key}"))
+        t = frontmatter.get("type")
+        if t not in ALLOWED_DEVREV_TYPES:
+            violations.append(
+                Violation(p, f"devrev frontmatter type={t!r} not in {sorted(ALLOWED_DEVREV_TYPES)}")
+            )
+        sev = frontmatter.get("severity")
+        if sev not in ALLOWED_DEVREV_SEVERITIES:
+            violations.append(
+                Violation(p, f"devrev frontmatter severity={sev!r} not in {sorted(ALLOWED_DEVREV_SEVERITIES)}")
+            )
+        for section in REQUIRED_DEVREV_SECTIONS:
+            if section not in body:
+                violations.append(Violation(p, f"devrev file missing required section: {section}"))
+
+        # source_ticket should reference a real file
+        src = frontmatter.get("source_ticket")
+        if isinstance(src, str):
+            # Resolve relative to the devrev file's directory.
+            resolved = (p.parent / src).resolve()
+            if not resolved.exists():
+                violations.append(
+                    Violation(p, f"devrev source_ticket points to nonexistent file: {src}")
+                )
+
+    return violations
+
+
 def check_ticket_cluster_counts(meeting_folder: pathlib.Path) -> List[Violation]:
     """Cross-check ticket count against clusters minus cluster-level drops."""
     violations: list[Violation] = []
@@ -786,6 +860,7 @@ def main(argv: list[str]) -> int:
     violations.extend(check_walk_back_coverage(folder))
     violations.extend(check_quote_provenance(folder))
     violations.extend(check_ticket_cluster_counts(folder))
+    violations.extend(check_devrev_files(folder))
     for v in violations:
         print(f"{v.path}: {v.message}", file=sys.stderr)
     return 0 if not violations else 1

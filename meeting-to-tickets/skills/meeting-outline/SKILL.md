@@ -27,24 +27,25 @@ A *theme* is a topic that recurs or spans multiple utterances. Group related dis
 - T2: ...
 ```
 
-A theme is NOT a Q&A pair. It's a topical grouping that the downstream extractor uses to anticipate cross-chunk references.
+A theme is NOT a Q&A pair. It's a topical grouping that the downstream extractor uses to anticipate cross-chunk references. The right number of themes scales with the meeting: a 15-minute check-in might have 2-3; a 60-minute discovery call typically 6-10; a multi-hour deep-dive can have 15+. Don't pad and don't compress — track what the transcript actually surfaces.
 
 ### Named entities
-People, places, products, prior incidents that are referenced more than once OR introduced with notable context. Each entry: name — one-line role/context — `intro chunk N (t=MM:SS)`.
+People (other than meeting participants), places, products, prior incidents, named systems, competitors, vendors, customers — anything referenced more than once OR introduced with notable context. Each entry: name — one-line role/context — `intro chunk N (t=MM:SS)`.
 
 ```
-- Mrs. Banerjee — 10-year patient lost to Smile Hub competitor; intro chunk 1 (t=03:11)
-- DentalDesk — Pune-vendor clinic calendar software; intro chunk 1 (t=07:40)
+- <PersonName> — <role/relationship>; intro chunk N (t=MM:SS)
+- <ProductOrSystemName> — <one-line description>; intro chunk N (t=MM:SS)
+- <CompetitorOrVendor> — <relevance>; intro chunk N (t=MM:SS)
 ```
 
-When the same entity is described differently across chunks ("the Banerjee case" in chunk 1, "that situation" in chunk 3), the entity belongs here so downstream stages can resolve the reference.
+When the same entity is described differently across chunks ("the <Name> case" in chunk 1, "that situation" in chunk 3), the entity belongs here so downstream stages can resolve the reference. Meeting participants themselves go in `normalized.md`'s `participants:` frontmatter, not here.
 
 ### Named costs
-Specific quantified costs the client mentioned (₹ amounts, hours, days, percentages). Each entry: cost — context — `(speaker, t=MM:SS)`.
+Specific quantified costs the client mentioned (currency amounts, hours, days, percentages, headcount). Each entry: cost — context — `(speaker, t=MM:SS)`.
 
 ```
-- ₹1 lakh/month minimum revenue loss (Priya, t=04:21)
-- 1 hour/evening on confirmation calls (Priya, t=06:44)
+- <amount/unit> <what this measures> (<speaker>, t=MM:SS)
+- <hours/period> spent on <activity> (<speaker>, t=MM:SS)
 ```
 
 These are evidence the reconciler uses to accumulate cost-of-doing-nothing evidence under a single Q&A even when the cost numbers span chunks.
@@ -53,8 +54,8 @@ These are evidence the reconciler uses to accumulate cost-of-doing-nothing evide
 Decisions explicitly made or actions agreed during the call. Each entry: decision — `(t=MM:SS)`.
 
 ```
-- Thursday 4 PM follow-up call (t=35:54)
-- Narrow v1 in 6 weeks; full system in 3-4 months (t=31:46)
+- <date/time> follow-up <type> (t=MM:SS)
+- <scope decision or commitment> (t=MM:SS)
 ```
 
 ### Walk-backs (Mom's-Test pivots — critical)
@@ -64,9 +65,7 @@ A *walk-back* is a Mom's-Test pattern where the client states an ask, and either
 Each walk-back: short name — original ask (chunk and timestamp) — walked-back scope (chunk and timestamp).
 
 ```
-- Marathi support — asked at chunk 1 (t=10:04) — walked back to "Hindi covers them" at chunk 1 (t=10:30)
-- Insurance Q&A — asked at chunk 1 (t=14:55) — walked back to triage-only at chunk 1 (t=16:24)
-- Payments — asked at chunk 1 (t=16:41) — walked back to "the payment part works fine" at chunk 1 (t=17:07)
+- <Feature or scope name> — asked at chunk N (t=MM:SS) — walked back to "<short quote of new scope>" at chunk M (t=MM:SS)
 ```
 
 Walk-backs declared here are a contract: the reconciler's `qa.md` must contain a Q&A covering each walk-back as a SINGLE Q&A under the "Stated ask vs. underlying need" lens, with BOTH the original ask quote AND the walked-back quote as evidence. The invariant checker enforces this.
@@ -96,7 +95,7 @@ walk_backs: <int>
 ## Constraints
 - Do not modify `normalized.md`.
 - Do not write any file other than `outline.md`.
-- Do not exceed ~120 lines total output for a typical 60-minute meeting; this is a reference index, not a summary essay.
+- Size scales with the meeting — there is no fixed length. As a rough sanity check, a 60-minute discovery call typically produces an outline of ~80-150 lines. Much shorter for a 15-minute check-in; much longer for a multi-hour deep-dive. Don't pad to hit a target; don't compress away real signal.
 
 ## Acceptance test
-Against `meetings/mehta-dental-discovery/normalized.md`, the produced `outline.md` should include themes for after-hours phone gap, WhatsApp inbox decay, no-shows, multilingual coverage, emergency triage, prior chatbot failure, treatment-plan continuity, staff burnout, and DPDP; named entities for Mrs. Banerjee, DentalDesk, Smile Hub, Dr. Roy, Sunita; named costs for ₹1 lakh/month and ₹80K prior vendor; commitments for the Thursday 4 PM follow-up and 6-week v1; walk-backs for Marathi, insurance Q&A, and payments. Counts in frontmatter should match the section bullet counts.
+Against `fixtures/expected/clean-short/normalized.md` (the canonical short-call fixture), the produced `outline.md` should declare counts in frontmatter that match the bullet counts in each section, name every recurring entity/cost/commitment grounded in the transcript, and surface every Mom's-Test walk-back that occurred in the call. Against `fixtures/expected/long-noisy/normalized.md`, themes should span both stated topics and the recurring entities should include any that re-appear across chunks. Against `fixtures/expected/compliments-only/normalized.md` the outline may be near-empty in every section — that is the correct outcome when the call contains no grounded material.

@@ -33,9 +33,9 @@ Optional flags:
 ## What the script does (single source of truth)
 
 - **Format detection** — `vtt` (WEBVTT header), `srt` (cue index + comma-millisecond timestamps), `bracketed-ts` (`[MM:SS]` or `[HH:MM:SS]` line prefix), `labeled` (`Speaker:` line prefix with no timestamps), or `unknown` (fallback).
-- **Header parsing** — pulls `date:` and `participants:` from a `Date: YYYY-MM-DD` line and an inline-or-bulleted `Participants:` block. Roles in parens (`Priya (Office Manager)`) are stripped. Header keys (`Date`, `Duration`, `Meeting`, etc.) are never treated as speakers.
+- **Header parsing** — pulls `date:` and `participants:` from a `Date: YYYY-MM-DD` line and an inline-or-bulleted `Participants:` block. Roles in parens (`<Name> (<Role>)`) are stripped. Header keys (`Date`, `Duration`, `Meeting`, etc.) are never treated as speakers.
 - **Per-utterance emission** — `<!-- t=MM:SS -->` HTML comment on its own line, then `Speaker: text`. Hour-form timestamps (`01:05:00`) collapse to total minutes (`65:00`).
-- **Multi-speaker cue handling (VTT/SRT)** — a single cue containing `Alice: ...\nPriya: ...` produces two utterances sharing the cue's start timestamp.
+- **Multi-speaker cue handling (VTT/SRT)** — a single cue containing `<Speaker A>: ...\n<Speaker B>: ...` produces two utterances sharing the cue's start timestamp.
 - **Leading filler collapse** — `um`, `uh`, `you know`, `like` only at the start of an utterance. Mid-utterance fillers preserved.
 - **Chunking** — utterance boundaries only; soft budget; 1-utterance overlap between consecutive chunks; never splits inside an utterance even when it exceeds budget.
 - **Frontmatter** — `meeting_slug`, `date` (only if found in source), `participants` (header > inferred order of first appearance > `[Unknown]`), `chunks`, `format_warning`.

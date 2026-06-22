@@ -25,7 +25,7 @@ Write `<meeting_folder>/qa.md`. Do not write anything else. Do not modify the pe
 
 Two Q&As from different chunks should be merged when EITHER:
 - They share the same primary lens AND describe substantially the same theme (entity or topic from the outline), OR
-- They're both about the same named entity from the outline (Mrs. Banerjee, DentalDesk, etc.), OR
+- They're both about the same named entity from the outline (a person, system, vendor, competitor, etc.), OR
 - They're parts of the same walk-back declared in `outline.md`.
 
 When merging:
@@ -91,9 +91,11 @@ After producing the merged `qa.md`, scan it: for every walk-back declared in `ou
 The invariant checker reads this section and flags any gap as a violation.
 
 ## Acceptance test
-Against `meetings/mehta-dental-discovery/` with chunks 1 and 2 already extracted:
-- `chunks_merged: 2`, `qa_before_dedup: ≈32` (18 from chunk 1 + 14 from chunk 2), `qa_after_dedup: ≈22-26` (after merging burnout, festival/holiday, and any other cross-chunk themes)
-- `walk_backs_resolved: 3` (Marathi, Insurance Q&A, Payments — all three were resolved intra-chunk by the extractor)
-- No `## Walk-back coverage gaps` section
-- The merged Q&A for staff burnout contains quotes from both chunk 1 (the two-people-quit and lunch-break lines) and chunk 2 (Priya-is-third-in-three-years and offload-half-the-work lines)
-- The merged Q&A for festival/holiday-closure contains quotes from chunk 1 (120 WhatsApp + 60 missed calls) and chunk 2 (holiday handling commitment)
+For any meeting where extraction produced one or more `qa-chunks/qa-*.md` files:
+- `chunks_merged` equals the actual number of chunk files read.
+- `qa_after_dedup ≤ qa_before_dedup` (merges can only reduce, never expand).
+- `walk_backs_resolved` equals the count of walk-backs declared in `outline.md`.
+- No `## Walk-back coverage gaps` section is emitted unless a declared walk-back genuinely could not be located in qa-chunks.
+- For any theme declared in `outline.md` as spanning chunks `[N, M]`, the merged `qa.md` contains a Q&A whose `**Chunks:**` line names both N and M (or explicit evidence of why merging was rejected).
+
+A single-chunk meeting is a valid input: `chunks_merged: 1`, `qa_before_dedup == qa_after_dedup`, no cross-chunk merges fire. A compliments-only meeting may produce `qa_after_dedup: 0` with the Dropped section carrying all the proposed-but-discarded items.

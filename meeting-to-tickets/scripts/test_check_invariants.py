@@ -904,6 +904,184 @@ def test_check_qa_flags_walk_back_coverage_gaps_in_qa_body(tmp_path):
     assert any("uncovered walk-back" in v.message.lower() for v in violations)
 
 
+def test_check_devrev_files_skipped_when_no_devrev_dir(tmp_path):
+    """devrev/ is optional — when absent, no checks fire."""
+    from check_invariants import check_devrev_files
+
+    assert check_devrev_files(tmp_path) == []
+
+
+def test_check_devrev_files_passes_on_clean_pair(tmp_path):
+    from check_invariants import check_devrev_files
+
+    tickets = tmp_path / "tickets"
+    devrev = tmp_path / "devrev"
+    tickets.mkdir()
+    devrev.mkdir()
+    (tickets / "01-foo.md").write_text("---\ntype: feature\n---\n# Foo\n")
+    (devrev / "01-foo.md").write_text(textwrap.dedent("""
+        ---
+        type: feature_request
+        severity: high
+        source_meeting: x
+        source_ticket: ../tickets/01-foo.md
+        ---
+
+        # Foo
+
+        ## Summary
+        Body.
+
+        ## Acceptance criteria
+        - [ ] Done when X.
+
+        ## Top evidence
+        > Speaker: "quote"
+
+        ## Source
+        - PM-review ticket: ../tickets/01-foo.md
+    """).lstrip())
+    assert check_devrev_files(tmp_path) == []
+
+
+def test_check_devrev_files_flags_missing_companion(tmp_path):
+    from check_invariants import check_devrev_files
+
+    tickets = tmp_path / "tickets"
+    devrev = tmp_path / "devrev"
+    tickets.mkdir()
+    devrev.mkdir()
+    (tickets / "01-foo.md").write_text("---\ntype: feature\n---\n# Foo\n")
+    (tickets / "02-bar.md").write_text("---\ntype: task\n---\n# Bar\n")
+    # Only one devrev file — 02 is missing
+    (devrev / "01-foo.md").write_text(textwrap.dedent("""
+        ---
+        type: feature_request
+        severity: high
+        source_meeting: x
+        source_ticket: ../tickets/01-foo.md
+        ---
+
+        # Foo
+
+        ## Summary
+        Body.
+
+        ## Acceptance criteria
+        - [ ] Done.
+
+        ## Top evidence
+        > Speaker: "quote"
+
+        ## Source
+        - PM-review ticket: ../tickets/01-foo.md
+    """).lstrip())
+    violations = check_devrev_files(tmp_path)
+    assert any("02-bar.md" in v.message for v in violations)
+
+
+def test_check_devrev_files_flags_invalid_type(tmp_path):
+    from check_invariants import check_devrev_files
+
+    tickets = tmp_path / "tickets"
+    devrev = tmp_path / "devrev"
+    tickets.mkdir()
+    devrev.mkdir()
+    (tickets / "01-foo.md").write_text("---\ntype: feature\n---\n# Foo\n")
+    (devrev / "01-foo.md").write_text(textwrap.dedent("""
+        ---
+        type: feature
+        severity: high
+        source_meeting: x
+        source_ticket: ../tickets/01-foo.md
+        ---
+
+        # Foo
+
+        ## Summary
+        Body.
+
+        ## Acceptance criteria
+        - [ ] Done.
+
+        ## Top evidence
+        > Speaker: "quote"
+
+        ## Source
+        - PM-review ticket: ../tickets/01-foo.md
+    """).lstrip())
+    violations = check_devrev_files(tmp_path)
+    assert any(
+        "type='feature'" in v.message and "feature_request" in v.message
+        for v in violations
+    )
+
+
+def test_check_devrev_files_flags_missing_section(tmp_path):
+    from check_invariants import check_devrev_files
+
+    tickets = tmp_path / "tickets"
+    devrev = tmp_path / "devrev"
+    tickets.mkdir()
+    devrev.mkdir()
+    (tickets / "01-foo.md").write_text("---\ntype: feature\n---\n# Foo\n")
+    (devrev / "01-foo.md").write_text(textwrap.dedent("""
+        ---
+        type: feature_request
+        severity: high
+        source_meeting: x
+        source_ticket: ../tickets/01-foo.md
+        ---
+
+        # Foo
+
+        ## Summary
+        Body.
+
+        ## Acceptance criteria
+        - [ ] Done.
+
+        ## Source
+        - PM-review ticket: ../tickets/01-foo.md
+    """).lstrip())
+    violations = check_devrev_files(tmp_path)
+    assert any("Top evidence" in v.message for v in violations)
+
+
+def test_check_devrev_files_flags_source_ticket_pointing_nowhere(tmp_path):
+    from check_invariants import check_devrev_files
+
+    tickets = tmp_path / "tickets"
+    devrev = tmp_path / "devrev"
+    tickets.mkdir()
+    devrev.mkdir()
+    (tickets / "01-foo.md").write_text("---\ntype: feature\n---\n# Foo\n")
+    (devrev / "01-foo.md").write_text(textwrap.dedent("""
+        ---
+        type: feature_request
+        severity: high
+        source_meeting: x
+        source_ticket: ../tickets/99-nonexistent.md
+        ---
+
+        # Foo
+
+        ## Summary
+        Body.
+
+        ## Acceptance criteria
+        - [ ] Done.
+
+        ## Top evidence
+        > Speaker: "quote"
+
+        ## Source
+        - PM-review ticket: ../tickets/01-foo.md
+    """).lstrip())
+    violations = check_devrev_files(tmp_path)
+    assert any("99-nonexistent.md" in v.message for v in violations)
+
+
 def test_check_no_internal_scaffolding_passes_clean_ticket(tmp_path):
     from check_invariants import check_no_internal_scaffolding_in_ticket_prose
 

@@ -23,8 +23,11 @@ Stages run in this order:
 | 4 | reconciler | `qa-reconciler` | `qa-chunks/qa-*.md`, `outline.md` | `qa.md` |
 | 5 | clustering | `theme-clustering` | `qa.md` | `clusters.md` |
 | 6 | drafting | `ticket-drafting` | `clusters.md`, `qa.md` | `tickets/*.md`, `dropped.md` (append) |
+| 7 | devrev-compactor | `devrev-compactor` | `tickets/*.md`, `outline.md` | `devrev/*.md` |
 
 Stage 3 (extraction) is a loop: for an N-chunk meeting, you invoke `moms-test-extraction` N times — once per chunk — producing `qa-chunks/qa-1.md`, `qa-chunks/qa-2.md`, etc.
+
+Stage 7 (devrev-compactor) is optional in this orchestrator. It runs by default but can be skipped with `--no-devrev` if the user only wants the PM-review tickets. The compactor produces a 1:1 sibling for each `tickets/*.md` in `devrev/`, formatted for direct DevRev copy-paste or API push. The original `tickets/` files remain the PM-review artifact.
 
 ## Idempotency
 Before invoking each sub-skill (or each chunk's extraction):

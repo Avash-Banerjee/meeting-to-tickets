@@ -15,7 +15,7 @@ Write `<meeting_folder>/clusters.md`. Do not write anything else.
 
 ## How to cluster
 - A cluster is a coherent theme that could plausibly become one ticket. Examples: "Onboarding reconciliation", "Reporting export", "Access control review".
-- Aim for 1–6 clusters per meeting. If you find yourself producing more, you are over-splitting — re-merge.
+- **Cluster count is adaptive — scale to what the transcript actually justifies.** A 15-minute check-in might produce 1-2 clusters; a 60-minute discovery call typically 4-7; a multi-hour deep-dive can have 8-12. Don't force a target. If you find yourself producing many small clusters that feel redundant or could plausibly be sub-sections of a larger ticket, re-merge. If you have a single mega-cluster covering everything, look for natural sub-themes and split.
 - A single Q&A may belong to multiple clusters. Overlap is allowed.
 - Q&As that don't fit any theme go to `## Unclustered`. Nothing is silently dropped at this stage.
 
