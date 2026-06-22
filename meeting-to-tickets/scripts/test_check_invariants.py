@@ -693,6 +693,217 @@ def test_check_intake_round_trip_skips_decorative_separators_and_header(tmp_path
     assert _word_count(src) < len(src.split())
 
 
+def test_check_outline_passes_on_clean_input(tmp_path):
+    from check_invariants import check_outline
+
+    p = tmp_path / "outline.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        source: normalized.md
+        chunks_covered: 2
+        themes: 1
+        entities: 1
+        costs: 1
+        commitments: 1
+        walk_backs: 1
+        ---
+
+        ## Themes
+        - T1: After-hours phone gap — chunks [1, 2]
+
+        ## Named entities
+        - Mrs. Banerjee — 10-year patient lost; intro chunk 1 (t=03:11)
+
+        ## Named costs
+        - 1 hour/evening on confirmation calls (Priya, t=06:44)
+
+        ## Commitments
+        - Thursday 4 PM follow-up call (t=35:54)
+
+        ## Walk-backs
+        - Marathi support — asked at chunk 1 (t=10:04) — walked back to "Hindi covers them" at chunk 1 (t=10:30)
+    """).lstrip())
+    assert check_outline(p) == []
+
+
+def test_check_outline_flags_missing_required_section(tmp_path):
+    from check_invariants import check_outline
+
+    p = tmp_path / "outline.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        source: normalized.md
+        chunks_covered: 1
+        themes: 1
+        entities: 0
+        costs: 0
+        commitments: 0
+        walk_backs: 0
+        ---
+
+        ## Themes
+        - T1: Something — chunks [1]
+    """).lstrip())
+    violations = check_outline(p)
+    assert any("Named entities" in v.message for v in violations)
+    assert any("Walk-backs" in v.message for v in violations)
+
+
+def test_check_outline_flags_count_mismatch(tmp_path):
+    from check_invariants import check_outline
+
+    p = tmp_path / "outline.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        source: normalized.md
+        chunks_covered: 1
+        themes: 5
+        entities: 0
+        costs: 0
+        commitments: 0
+        walk_backs: 0
+        ---
+
+        ## Themes
+        - T1: Something — chunks [1]
+
+        ## Named entities
+
+        ## Walk-backs
+    """).lstrip())
+    violations = check_outline(p)
+    assert any("themes=5" in v.message and "1 bullets" in v.message for v in violations)
+
+
+def test_check_qa_chunks_present_passes(tmp_path):
+    from check_invariants import check_qa_chunks_present
+
+    (tmp_path / "normalized.md").write_text(
+        "---\nmeeting_slug: x\nparticipants: [A]\nchunks: 2\nformat_warning: null\n---\n\n"
+        "<!-- chunk 1/2 -->\nA: hi\n<!-- chunk 2/2 -->\nA: bye\n"
+    )
+    (tmp_path / "outline.md").write_text("---\nsource: normalized.md\n---\n## Themes\n")
+    qa_chunks = tmp_path / "qa-chunks"
+    qa_chunks.mkdir()
+    (qa_chunks / "qa-1.md").write_text("---\n---\n")
+    (qa_chunks / "qa-2.md").write_text("---\n---\n")
+    assert check_qa_chunks_present(tmp_path) == []
+
+
+def test_check_qa_chunks_present_flags_missing_chunk_file(tmp_path):
+    from check_invariants import check_qa_chunks_present
+
+    (tmp_path / "normalized.md").write_text(
+        "---\nmeeting_slug: x\nparticipants: [A]\nchunks: 2\nformat_warning: null\n---\n\n"
+        "<!-- chunk 1/2 -->\nA: hi\n<!-- chunk 2/2 -->\nA: bye\n"
+    )
+    (tmp_path / "outline.md").write_text("---\nsource: normalized.md\n---\n## Themes\n")
+    qa_chunks = tmp_path / "qa-chunks"
+    qa_chunks.mkdir()
+    (qa_chunks / "qa-1.md").write_text("---\n---\n")
+    # qa-2.md missing
+    violations = check_qa_chunks_present(tmp_path)
+    assert any("qa-2.md" in v.message for v in violations)
+
+
+def test_check_qa_chunks_present_skips_when_no_outline(tmp_path):
+    """Legacy meeting folders without outline.md aren't expected to have qa-chunks/."""
+    from check_invariants import check_qa_chunks_present
+
+    (tmp_path / "normalized.md").write_text(
+        "---\nmeeting_slug: x\nchunks: 2\nformat_warning: null\nparticipants: [A]\n---\n"
+    )
+    assert check_qa_chunks_present(tmp_path) == []
+
+
+def test_check_walk_back_coverage_passes_when_counts_match(tmp_path):
+    from check_invariants import check_walk_back_coverage
+
+    (tmp_path / "outline.md").write_text(
+        "---\nsource: normalized.md\nchunks_covered: 1\nthemes: 0\nentities: 0\ncosts: 0\ncommitments: 0\nwalk_backs: 3\n---\n"
+    )
+    (tmp_path / "qa.md").write_text(
+        "---\nsource: qa-chunks/\nchunks_merged: 1\nqa_before_dedup: 3\nqa_after_dedup: 3\ndropped: 0\nwalk_backs_resolved: 3\n---\n"
+    )
+    assert check_walk_back_coverage(tmp_path) == []
+
+
+def test_check_walk_back_coverage_flags_mismatch(tmp_path):
+    from check_invariants import check_walk_back_coverage
+
+    (tmp_path / "outline.md").write_text(
+        "---\nsource: normalized.md\nchunks_covered: 1\nthemes: 0\nentities: 0\ncosts: 0\ncommitments: 0\nwalk_backs: 3\n---\n"
+    )
+    (tmp_path / "qa.md").write_text(
+        "---\nsource: qa-chunks/\nchunks_merged: 1\nqa_before_dedup: 3\nqa_after_dedup: 3\ndropped: 0\nwalk_backs_resolved: 1\n---\n"
+    )
+    violations = check_walk_back_coverage(tmp_path)
+    assert any("3 walk-backs" in v.message and "1" in v.message for v in violations)
+
+
+def test_check_qa_supports_reconciled_schema(tmp_path):
+    """The reconciler-output qa.md uses a different frontmatter shape:
+    chunks_merged / qa_before_dedup / qa_after_dedup / walk_backs_resolved
+    instead of chunks_processed / total_qa. The schema is auto-detected."""
+    from check_invariants import check_qa
+
+    p = tmp_path / "qa.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        source: qa-chunks/
+        chunks_merged: 2
+        qa_before_dedup: 3
+        qa_after_dedup: 2
+        dropped: 0
+        walk_backs_resolved: 1
+        ---
+
+        ### Q1 — Sample (lens: problem in life) [MERGED across chunks 1 and 2]
+        **Answer:** ans.
+        **Confidence:** grounded
+        **Chunks:** 1, 2
+        **Quotes:**
+        - Speaker: "verbatim text here"
+
+        ### Q2 — Other (lens: cost of doing nothing)
+        **Answer:** ans.
+        **Confidence:** grounded
+        **Chunks:** 2
+        **Quotes:**
+        - Speaker: "another quote"
+    """).lstrip())
+    violations = check_qa(p)
+    assert violations == []
+
+
+def test_check_qa_flags_walk_back_coverage_gaps_in_qa_body(tmp_path):
+    from check_invariants import check_qa
+
+    p = tmp_path / "qa.md"
+    p.write_text(textwrap.dedent("""
+        ---
+        source: qa-chunks/
+        chunks_merged: 2
+        qa_before_dedup: 1
+        qa_after_dedup: 1
+        dropped: 0
+        walk_backs_resolved: 0
+        ---
+
+        ### Q1 — Sample (lens: problem in life)
+        **Answer:** ans.
+        **Confidence:** grounded
+        **Chunks:** 1
+        **Quotes:**
+        - Speaker: "verbatim text here"
+
+        ## Walk-back coverage gaps
+        - Marathi support — ask at chunk 1 (t=10:04) found, retraction at chunk 1 (t=10:30) not found in any output Q&A
+    """).lstrip())
+    violations = check_qa(p)
+    assert any("uncovered walk-back" in v.message.lower() for v in violations)
+
+
 def test_check_ticket_cluster_counts_flags_imbalance(tmp_path):
     folder = _scaffold_meeting(
         tmp_path,

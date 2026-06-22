@@ -64,10 +64,19 @@ def check_normalized(path: pathlib.Path) -> List[Violation]:
     return violations
 
 
-REQUIRED_QA_KEYS = {"source", "chunks_processed", "total_qa", "dropped"}
+# qa.md has two valid schemas:
+#  - legacy direct-extractor output: chunks_processed + total_qa
+#  - post-reconciler output: chunks_merged + qa_before_dedup + qa_after_dedup + walk_backs_resolved
+# Both must declare `source` and `dropped`. The schema is auto-detected by
+# presence of `chunks_merged` in the frontmatter.
+REQUIRED_QA_KEYS_BASE = {"source", "dropped"}
+REQUIRED_QA_KEYS_LEGACY = {"chunks_processed", "total_qa"}
+REQUIRED_QA_KEYS_RECONCILED = {"chunks_merged", "qa_before_dedup", "qa_after_dedup", "walk_backs_resolved"}
 
 
-_QA_HEADER_RE = re.compile(r"^### Q\d+ — .+\(lens: .+\)$", re.MULTILINE)
+# Allow optional trailing annotation like `[MERGED across chunks 1 and 2]` or
+# `[walk-back resolved intra-chunk]` after the lens parens.
+_QA_HEADER_RE = re.compile(r"^### Q\d+ — .+\(lens: [^)]+\)", re.MULTILINE)
 
 
 def _split_qa_blocks(body: str) -> list[str]:
@@ -88,7 +97,11 @@ def check_qa(path: pathlib.Path) -> List[Violation]:
         violations.append(Violation(path, "qa.md has no parseable YAML frontmatter"))
         return violations
 
-    missing = REQUIRED_QA_KEYS - set(frontmatter.keys())
+    is_reconciled = "chunks_merged" in frontmatter
+    required = REQUIRED_QA_KEYS_BASE | (
+        REQUIRED_QA_KEYS_RECONCILED if is_reconciled else REQUIRED_QA_KEYS_LEGACY
+    )
+    missing = required - set(frontmatter.keys())
     for key in sorted(missing):
         violations.append(Violation(path, f"qa.md frontmatter missing required key: {key}"))
 
@@ -118,12 +131,14 @@ def check_qa(path: pathlib.Path) -> List[Violation]:
         if " — " not in s:
             violations.append(Violation(path, f"qa.md dropped entry missing reason: {s}"))
 
-    declared_total = frontmatter.get("total_qa")
+    # Count cross-check: legacy uses `total_qa`, reconciled uses `qa_after_dedup`.
+    declared_total = frontmatter.get("qa_after_dedup") if is_reconciled else frontmatter.get("total_qa")
+    total_key = "qa_after_dedup" if is_reconciled else "total_qa"
     if isinstance(declared_total, int) and declared_total != len(blocks):
         violations.append(
             Violation(
                 path,
-                f"qa.md frontmatter total_qa={declared_total} does not match {len(blocks)} Q&A blocks found",
+                f"qa.md frontmatter {total_key}={declared_total} does not match {len(blocks)} Q&A blocks found",
             )
         )
 
@@ -135,6 +150,18 @@ def check_qa(path: pathlib.Path) -> List[Violation]:
                 f"qa.md frontmatter dropped count={declared_dropped} does not match {len(dropped_entries)} Dropped entries found",
             )
         )
+
+    # A reconciled qa.md must not contain a "## Walk-back coverage gaps"
+    # section. If it does, the reconciler couldn't cover one or more
+    # outline-declared walk-backs and the checker flags each.
+    if "## Walk-back coverage gaps" in body:
+        gap_section = body.split("## Walk-back coverage gaps", 1)[1]
+        for line in gap_section.splitlines():
+            s = line.strip()
+            if s.startswith("- "):
+                violations.append(
+                    Violation(path, f"qa.md reconciler flagged uncovered walk-back: {s[2:]}")
+                )
 
     return violations
 
@@ -275,6 +302,134 @@ def check_quote_provenance(meeting_folder: pathlib.Path) -> List[Violation]:
                         )
 
     return violations
+
+
+REQUIRED_OUTLINE_KEYS = {
+    "source",
+    "chunks_covered",
+    "themes",
+    "entities",
+    "costs",
+    "commitments",
+    "walk_backs",
+}
+OUTLINE_REQUIRED_SECTIONS = ["## Themes", "## Named entities", "## Walk-backs"]
+
+
+def check_outline(path: pathlib.Path) -> List[Violation]:
+    """Validate the outline.md produced by `meeting-outline`. Required keys,
+    presence of the three load-bearing sections, and integer counts that
+    match the bullet counts inside the sections."""
+    text = path.read_text()
+    frontmatter, body = _split_frontmatter(text)
+    violations: list[Violation] = []
+    if frontmatter is None:
+        violations.append(Violation(path, "outline.md has no parseable YAML frontmatter"))
+        return violations
+
+    missing = REQUIRED_OUTLINE_KEYS - set(frontmatter.keys())
+    for key in sorted(missing):
+        violations.append(Violation(path, f"outline.md frontmatter missing required key: {key}"))
+
+    for required_section in OUTLINE_REQUIRED_SECTIONS:
+        if required_section not in body:
+            violations.append(
+                Violation(path, f"outline.md missing required section: {required_section}")
+            )
+
+    # Cross-check declared counts vs actual bullet counts per section.
+    def _bullet_count(section_marker: str) -> int | None:
+        if section_marker not in body:
+            return None
+        rest = body.split(section_marker, 1)[1]
+        # Stop at next H2.
+        next_h2 = re.search(r"^## ", rest, re.MULTILINE)
+        chunk = rest[: next_h2.start()] if next_h2 else rest
+        return sum(1 for ln in chunk.splitlines() if ln.strip().startswith("- "))
+
+    pairs = [
+        ("themes", "## Themes"),
+        ("entities", "## Named entities"),
+        ("costs", "## Named costs"),
+        ("commitments", "## Commitments"),
+        ("walk_backs", "## Walk-backs"),
+    ]
+    for key, marker in pairs:
+        declared = frontmatter.get(key)
+        actual = _bullet_count(marker)
+        if isinstance(declared, int) and actual is not None and declared != actual:
+            violations.append(
+                Violation(
+                    path,
+                    f"outline.md frontmatter {key}={declared} does not match {actual} bullets under {marker}",
+                )
+            )
+
+    return violations
+
+
+def check_qa_chunks_present(meeting_folder: pathlib.Path) -> List[Violation]:
+    """When outline.md exists (new architecture), require qa-chunks/qa-N.md
+    for every chunk declared in normalized.md."""
+    outline_path = meeting_folder / "outline.md"
+    normalized_path = meeting_folder / "normalized.md"
+    if not (outline_path.exists() and normalized_path.exists()):
+        return []
+
+    norm_fm, _ = _split_frontmatter(normalized_path.read_text())
+    if not isinstance(norm_fm, dict):
+        return []
+    chunk_count = norm_fm.get("chunks")
+    if not isinstance(chunk_count, int):
+        return []
+
+    qa_chunks_dir = meeting_folder / "qa-chunks"
+    violations: list[Violation] = []
+    if not qa_chunks_dir.is_dir():
+        violations.append(
+            Violation(
+                meeting_folder,
+                f"qa-chunks/ directory missing (normalized.md declares {chunk_count} chunks)",
+            )
+        )
+        return violations
+
+    for i in range(1, chunk_count + 1):
+        chunk_qa = qa_chunks_dir / f"qa-{i}.md"
+        if not chunk_qa.exists():
+            violations.append(
+                Violation(meeting_folder, f"qa-chunks/qa-{i}.md missing for chunk {i}")
+            )
+
+    return violations
+
+
+def check_walk_back_coverage(meeting_folder: pathlib.Path) -> List[Violation]:
+    """When outline.md declares walk-backs, qa.md's `walk_backs_resolved`
+    frontmatter must equal the number declared. The reconciler is expected
+    to surface uncovered walk-backs via a `## Walk-back coverage gaps`
+    section (which check_qa already flags), so this is the count-level
+    second line of defense."""
+    outline_path = meeting_folder / "outline.md"
+    qa_path = meeting_folder / "qa.md"
+    if not (outline_path.exists() and qa_path.exists()):
+        return []
+    outline_fm, _ = _split_frontmatter(outline_path.read_text())
+    qa_fm, _ = _split_frontmatter(qa_path.read_text())
+    if not (isinstance(outline_fm, dict) and isinstance(qa_fm, dict)):
+        return []
+    declared = outline_fm.get("walk_backs")
+    resolved = qa_fm.get("walk_backs_resolved")
+    if not (isinstance(declared, int) and isinstance(resolved, int)):
+        return []
+    if declared != resolved:
+        return [
+            Violation(
+                meeting_folder,
+                f"outline.md declares {declared} walk-backs but qa.md only resolved {resolved}",
+            )
+        ]
+    return []
 
 
 def check_ticket_cluster_counts(meeting_folder: pathlib.Path) -> List[Violation]:
@@ -550,6 +705,8 @@ def main(argv: list[str]) -> int:
     violations: list[Violation] = []
     if (folder / "normalized.md").exists():
         violations.extend(check_normalized(folder / "normalized.md"))
+    if (folder / "outline.md").exists():
+        violations.extend(check_outline(folder / "outline.md"))
     qa_ids: set[str] | None = None
     if (folder / "qa.md").exists():
         violations.extend(check_qa(folder / "qa.md"))
@@ -562,6 +719,8 @@ def main(argv: list[str]) -> int:
             violations.extend(check_ticket(ticket))
     # Cross-file checks (need access to the whole meeting folder).
     violations.extend(check_intake_round_trip(folder))
+    violations.extend(check_qa_chunks_present(folder))
+    violations.extend(check_walk_back_coverage(folder))
     violations.extend(check_quote_provenance(folder))
     violations.extend(check_ticket_cluster_counts(folder))
     for v in violations:
