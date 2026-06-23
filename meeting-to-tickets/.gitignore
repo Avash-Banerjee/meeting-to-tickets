@@ -1,6 +1,8 @@
 # Per-meeting runtime outputs (user data — do not commit unless explicitly demoed)
 meetings/*/
+meetings/*.zip
 !meetings/.gitkeep
+!meetings/mehta-dental-discovery/
 
 # Python
 __pycache__/
