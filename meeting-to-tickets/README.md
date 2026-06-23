@@ -28,14 +28,40 @@ This project ships in two forms — choose based on whether you want to use it o
 The project root is a Claude Code plugin: `.claude-plugin/plugin.json` manifest, `commands/call-to-ticket.md` slash command, `skills/` skill pack (8 skills), and `scripts/` deterministic helpers.
 
 ```bash
-# Clone into the user's plugins directory
+# 1. Clone into the user's plugins directory
 git clone <repo-url> ~/.claude/plugins/meeting-to-tickets
 
-# Install Python deps for the deterministic scripts
+# 2. Install Python deps for the deterministic scripts
 pip install PyYAML
+
+# 3. Symlink the slash command into ~/.claude/commands/
+#    (Claude Code reads custom slash commands only from this directory)
+mkdir -p ~/.claude/commands
+ln -s ~/.claude/plugins/meeting-to-tickets/commands/call-to-ticket.md \
+      ~/.claude/commands/call-to-ticket.md
+
+# 4. Symlink all 8 skills so Claude Code can invoke them by name
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/meeting-to-tickets/SKILL.md \
+      ~/.claude/commands/meeting-to-tickets.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/transcript-intake/SKILL.md \
+      ~/.claude/commands/transcript-intake.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/meeting-outline/SKILL.md \
+      ~/.claude/commands/meeting-outline.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/moms-test-extraction/SKILL.md \
+      ~/.claude/commands/moms-test-extraction.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/qa-reconciler/SKILL.md \
+      ~/.claude/commands/qa-reconciler.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/theme-clustering/SKILL.md \
+      ~/.claude/commands/theme-clustering.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/ticket-drafting/SKILL.md \
+      ~/.claude/commands/ticket-drafting.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/devrev-compactor/SKILL.md \
+      ~/.claude/commands/devrev-compactor.md
 ```
 
-The plugin exposes one slash command: `/call-to-ticket <meeting-folder-or-transcript-path> [--no-devrev]`. From any Claude Code session, the orchestrator + rigor gate run end-to-end and report tickets.
+> **Why the symlinks?** Claude Code's local plugin system does not auto-discover `commands/` or `skills/` from `~/.claude/plugins/`. The only directory it reads custom slash commands and skills from is `~/.claude/commands/`. The symlinks above wire the two together without duplicating files.
+
+After setup, the plugin exposes one slash command: `/call-to-ticket <meeting-folder-or-transcript-path> [--no-devrev]`. From any Claude Code session, the orchestrator + rigor gate run end-to-end and report tickets.
 
 ### As a Claude Agent SDK plugin (for embedding in your own tool)
 
