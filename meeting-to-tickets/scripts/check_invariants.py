@@ -494,53 +494,78 @@ def check_no_internal_scaffolding_in_ticket_prose(path: pathlib.Path) -> List[Vi
     return violations
 
 
-REQUIRED_DEVREV_KEYS = {"type", "severity", "source_meeting", "source_ticket"}
+# Legacy schema (devrev-compactor from tickets/*.md)
+REQUIRED_DEVREV_KEYS_LEGACY = {"type", "severity", "source_meeting", "source_ticket"}
+REQUIRED_DEVREV_SECTIONS_LEGACY = ("## Summary", "## Acceptance criteria", "## Top evidence", "## Source")
+
+# New schema (requirements-to-devrev from requirements/*.md)
+REQUIRED_DEVREV_KEYS_NEW = {"title", "type", "severity", "tags", "source_meeting", "source_requirement"}
+# Sections required regardless of type
+REQUIRED_DEVREV_SECTIONS_NEW_COMMON = ("## Summary", "## Open Questions", "## Source")
+
 ALLOWED_DEVREV_TYPES = {"feature_request", "task", "improvement", "bug"}
 ALLOWED_DEVREV_SEVERITIES = {"blocker", "high", "medium", "low"}
-REQUIRED_DEVREV_SECTIONS = ("## Summary", "## Acceptance criteria", "## Top evidence", "## Source")
 
 
 def check_devrev_files(meeting_folder: pathlib.Path) -> List[Violation]:
-    """Validate the devrev/ sibling files produced by `devrev-compactor`.
+    """Validate the devrev/ sibling files. Two schemas are supported:
 
-    For each devrev/*.md:
-    - Frontmatter has required keys with valid enum values.
-    - All four required sections are present.
-    - There is a corresponding source ticket file referenced by `source_ticket`.
-    - The 1:1 mapping holds: every tickets/*.md has a matching devrev/<same-name>
-      (only when devrev/ exists at all — if devrev/ doesn't exist, no check fires
-      because the stage is optional)."""
+    - Legacy (devrev-compactor): produced from tickets/*.md, has source_ticket
+      and a ## Top evidence section.
+    - New (requirements-to-devrev): produced from requirements/*.md, has
+      source_requirement, title, tags, no transcript quotes, and a hybrid
+      section layout that varies by requirements type.
+
+    The schema for each file is auto-detected by which source_* field is
+    present in its frontmatter. The 1:1 parity check uses requirements/ or
+    tickets/ depending on which directory exists.
+    """
     devrev_dir = meeting_folder / "devrev"
-    tickets_dir = meeting_folder / "tickets"
     violations: list[Violation] = []
     if not devrev_dir.is_dir():
         return violations
 
     devrev_files = sorted(p for p in devrev_dir.glob("*.md") if not p.name.endswith(".md.draft"))
-    ticket_files = sorted(p for p in tickets_dir.glob("*.md") if not p.name.endswith(".md.draft")) if tickets_dir.is_dir() else []
 
-    # 1:1 name parity check
+    # 1:1 name parity check — accept either tickets/ or requirements/ as upstream
+    tickets_dir = meeting_folder / "tickets"
+    requirements_dir = meeting_folder / "requirements"
+    if tickets_dir.is_dir():
+        upstream_files = sorted(p for p in tickets_dir.glob("*.md") if not p.name.endswith(".md.draft"))
+        upstream_label = "tickets"
+    elif requirements_dir.is_dir():
+        upstream_files = sorted(p for p in requirements_dir.glob("*.md") if not p.name.endswith(".md.draft"))
+        upstream_label = "requirements"
+    else:
+        upstream_files = []
+        upstream_label = None
+
     devrev_names = {p.name for p in devrev_files}
-    ticket_names = {p.name for p in ticket_files}
-    for name in ticket_names - devrev_names:
-        violations.append(
-            Violation(meeting_folder, f"devrev/ missing companion for tickets/{name}")
-        )
-    for name in devrev_names - ticket_names:
-        violations.append(
-            Violation(meeting_folder, f"devrev/{name} has no matching tickets/{name}")
-        )
+    upstream_names = {p.name for p in upstream_files}
+    if upstream_label is not None:
+        for name in upstream_names - devrev_names:
+            violations.append(
+                Violation(meeting_folder, f"devrev/ missing companion for {upstream_label}/{name}")
+            )
+        for name in devrev_names - upstream_names:
+            violations.append(
+                Violation(meeting_folder, f"devrev/{name} has no matching {upstream_label}/{name}")
+            )
 
-    # Per-file structural checks
+    # Per-file structural checks — schema auto-detected by source_* field
     for p in devrev_files:
         text = p.read_text()
         frontmatter, body = _split_frontmatter(text)
         if frontmatter is None:
             violations.append(Violation(p, "devrev file has no parseable YAML frontmatter"))
             continue
-        missing = REQUIRED_DEVREV_KEYS - set(frontmatter.keys())
+
+        is_new_schema = "source_requirement" in frontmatter
+        required_keys = REQUIRED_DEVREV_KEYS_NEW if is_new_schema else REQUIRED_DEVREV_KEYS_LEGACY
+        missing = required_keys - set(frontmatter.keys())
         for key in sorted(missing):
             violations.append(Violation(p, f"devrev frontmatter missing required key: {key}"))
+
         t = frontmatter.get("type")
         if t not in ALLOWED_DEVREV_TYPES:
             violations.append(
@@ -551,19 +576,67 @@ def check_devrev_files(meeting_folder: pathlib.Path) -> List[Violation]:
             violations.append(
                 Violation(p, f"devrev frontmatter severity={sev!r} not in {sorted(ALLOWED_DEVREV_SEVERITIES)}")
             )
-        for section in REQUIRED_DEVREV_SECTIONS:
-            if section not in body:
-                violations.append(Violation(p, f"devrev file missing required section: {section}"))
 
-        # source_ticket should reference a real file
-        src = frontmatter.get("source_ticket")
-        if isinstance(src, str):
-            # Resolve relative to the devrev file's directory.
-            resolved = (p.parent / src).resolve()
-            if not resolved.exists():
+        if is_new_schema:
+            # Check common sections
+            for section in REQUIRED_DEVREV_SECTIONS_NEW_COMMON:
+                if section not in body:
+                    violations.append(Violation(p, f"devrev file missing required section: {section}"))
+
+            # Type-specific section requirements (header name varies)
+            criteria_headers = (
+                "## Acceptance Criteria",
+                "## Provisional Acceptance Criteria",
+                "## Success Criteria",
+            )
+            if not any(h in body for h in criteria_headers):
                 violations.append(
-                    Violation(p, f"devrev source_ticket points to nonexistent file: {src}")
+                    Violation(p, "devrev file missing criteria section (expected one of: "
+                              + ", ".join(criteria_headers) + ")")
                 )
+
+            outcome_headers = ("## Proposed Outcome", "## Objective")
+            if not any(h in body for h in outcome_headers):
+                violations.append(
+                    Violation(p, "devrev file missing outcome section (expected one of: "
+                              + ", ".join(outcome_headers) + ")")
+                )
+
+            # Constraint tickets (mapped to type=task) must declare what they Block
+            if t == "task" and "## Blocks" not in body:
+                violations.append(
+                    Violation(p, "devrev task (constraint) missing required ## Blocks section")
+                )
+
+            # No transcript quotes (blockquote lines) allowed in the new schema
+            for ln in body.splitlines():
+                if ln.lstrip().startswith(">"):
+                    violations.append(
+                        Violation(p, f"devrev file (new schema) must not contain blockquote lines: {ln.strip()[:80]!r}")
+                    )
+                    break
+
+            # source_requirement should reference a real file
+            src = frontmatter.get("source_requirement")
+            if isinstance(src, str):
+                resolved = (p.parent / src).resolve()
+                if not resolved.exists():
+                    violations.append(
+                        Violation(p, f"devrev source_requirement points to nonexistent file: {src}")
+                    )
+        else:
+            # Legacy schema
+            for section in REQUIRED_DEVREV_SECTIONS_LEGACY:
+                if section not in body:
+                    violations.append(Violation(p, f"devrev file missing required section: {section}"))
+
+            src = frontmatter.get("source_ticket")
+            if isinstance(src, str):
+                resolved = (p.parent / src).resolve()
+                if not resolved.exists():
+                    violations.append(
+                        Violation(p, f"devrev source_ticket points to nonexistent file: {src}")
+                    )
 
     return violations
 
@@ -590,11 +663,15 @@ def check_ticket_cluster_counts(meeting_folder: pathlib.Path) -> List[Violation]
             if re.match(r"^\s*-\s+C\d+", line):
                 dropped_clusters += 1
 
+    # Accept either tickets/ (old ticket-drafting skill) or requirements/
+    # (new requirements-drafting skill) as the artifact directory.
+    requirements_dir = meeting_folder / "requirements"
+    artifact_dir = tickets_dir if tickets_dir.is_dir() else requirements_dir
     ticket_files = []
-    if tickets_dir.is_dir():
+    if artifact_dir.is_dir():
         ticket_files = [
             p
-            for p in sorted(tickets_dir.glob("*.md"))
+            for p in sorted(artifact_dir.glob("*.md"))
             if not p.name.endswith(".md.draft")
         ]
     expected = total_clusters - dropped_clusters

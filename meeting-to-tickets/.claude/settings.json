@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *scripts/intake.py *)",
+      "Bash(python3 *scripts/check_invariants.py *)",
+      "Bash(mkdir -p *meetings/*)",
+      "Bash(echo * >> *meetings/*/run.log)",
+      "Bash(cat *meetings/*/run.log)",
+      "Bash(head -* *meetings/*/normalized.md)",
+      "Bash(ls *meetings/*)",
+      "Write(*meetings/*/normalized.md)",
+      "Write(*meetings/*/outline.md)",
+      "Write(*meetings/*/qa.md)",
+      "Write(*meetings/*/qa-chunks/*.md)",
+      "Write(*meetings/*/clusters.md)",
+      "Write(*meetings/*/dropped.md)",
+      "Write(*meetings/*/requirements/*.md)",
+      "Write(*meetings/*/devrev/*.md)",
+      "Edit(*meetings/*/normalized.md)",
+      "Edit(*meetings/*/outline.md)",
+      "Edit(*meetings/*/qa.md)",
+      "Edit(*meetings/*/qa-chunks/*.md)",
+      "Edit(*meetings/*/clusters.md)",
+      "Edit(*meetings/*/dropped.md)",
+      "Edit(*meetings/*/requirements/*.md)",
+      "Edit(*meetings/*/devrev/*.md)"
+    ]
+  }
+}

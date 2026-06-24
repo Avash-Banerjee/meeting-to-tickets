@@ -1,19 +1,46 @@
 ---
 name: meeting-to-tickets
-description: Run the six-stage meeting-to-tickets pipeline end-to-end for one meeting folder. Chains transcript-intake → meeting-outline → moms-test-extraction (per chunk) → qa-reconciler → theme-clustering → ticket-drafting, with stage checkpoints, --auto, --force <stage>, idempotent reruns, and a run.log.
+description: Run the meeting-to-tickets pipeline end-to-end for one meeting folder. Automatically chooses the fast path (3 LLM calls) for single-chunk transcripts or the full path (6+ LLM calls) for multi-chunk ones. Chains intake → evidence → clustering → drafting, with stage checkpoints, --auto, --force <stage>, idempotent reruns, and a run.log.
 ---
 
 # meeting-to-tickets (orchestrator)
 
-You are running the six-stage pipeline for one meeting.
+You are running the meeting-to-tickets pipeline for one meeting. After intake, you choose one of two paths based on the transcript's chunk count — then both paths converge at clustering and run identically from there.
 
 ## Inputs
 A path to a meeting folder, plus optional flags:
 - `--auto` — skip confirmation prompts; run end to end.
-- `--force <stage>` — rerun the given stage even if its output is newer than its input. `<stage>` is one of `intake`, `outline`, `extraction`, `reconciler`, `clustering`, `drafting`.
+- `--force <stage>` — rerun the named stage even if its output is up to date. Valid stage names depend on path — see tables below.
+- `--no-devrev` — skip the final DevRev export stage; stop after `requirements-drafting`. By default the DevRev export runs.
 
-## Pipeline
-Stages run in this order:
+## Path selection
+
+After running intake, read `chunks:` from `normalized.md` frontmatter:
+
+- **`chunks: 1` → fast path** (single-pass evidence, ~3 LLM calls total)
+- **`chunks: 2+` → full path** (staged evidence, ~6+ LLM calls total)
+
+Both paths produce identical output files. Downstream stages (clustering, drafting) cannot tell which path was used.
+
+---
+
+## Fast path — single-chunk transcripts
+
+| # | Stage | Skill | Input | Output |
+|---|---|---|---|---|
+| 1 | intake | `transcript-intake` | `source.*` | `normalized.md` |
+| 2 | evidence | `fast-evidence` | `normalized.md` | `outline.md`, `qa-chunks/qa-1.md`, `qa.md` |
+| 3 | clustering | `theme-clustering` | `qa.md` | `clusters.md` |
+| 4 | drafting | `requirements-drafting` | `clusters.md`, `qa.md` | `requirements/*.md`, `dropped.md` |
+| 5 | devrev-export | `requirements-to-devrev` | `requirements/*.md` | `devrev/*.md` |
+
+Stage 5 runs by default but is skipped when `--no-devrev` is passed.
+
+`--force` stage names for fast path: `intake`, `evidence`, `clustering`, `drafting`, `devrev-export`.
+
+---
+
+## Full path — multi-chunk transcripts
 
 | # | Stage | Skill | Input | Output |
 |---|---|---|---|---|
@@ -22,59 +49,75 @@ Stages run in this order:
 | 3 | extraction | `moms-test-extraction` (looped per chunk) | `normalized.md` (one chunk), `outline.md` | `qa-chunks/qa-<N>.md` |
 | 4 | reconciler | `qa-reconciler` | `qa-chunks/qa-*.md`, `outline.md` | `qa.md` |
 | 5 | clustering | `theme-clustering` | `qa.md` | `clusters.md` |
-| 6 | drafting | `ticket-drafting` | `clusters.md`, `qa.md` | `tickets/*.md`, `dropped.md` (append) |
-| 7 | devrev-compactor | `devrev-compactor` | `tickets/*.md`, `outline.md` | `devrev/*.md` |
+| 6 | drafting | `requirements-drafting` | `clusters.md`, `qa.md` | `requirements/*.md`, `dropped.md` |
+| 7 | devrev-export | `requirements-to-devrev` | `requirements/*.md` | `devrev/*.md` |
 
-Stage 3 (extraction) is a loop: for an N-chunk meeting, you invoke `moms-test-extraction` N times — once per chunk — producing `qa-chunks/qa-1.md`, `qa-chunks/qa-2.md`, etc.
+Stage 3 (extraction) is a loop: invoke `moms-test-extraction` once per chunk, producing `qa-chunks/qa-1.md`, `qa-chunks/qa-2.md`, etc.
 
-Stage 7 (devrev-compactor) is optional in this orchestrator. It runs by default but can be skipped with `--no-devrev` if the user only wants the PM-review tickets. The compactor produces a 1:1 sibling for each `tickets/*.md` in `devrev/`, formatted for direct DevRev copy-paste or API push. The original `tickets/` files remain the PM-review artifact.
+Stage 7 runs by default but is skipped when `--no-devrev` is passed.
+
+`--force` stage names for full path: `intake`, `outline`, `extraction`, `reconciler`, `clustering`, `drafting`, `devrev-export`.
+
+---
 
 ## Idempotency
-Before invoking each sub-skill (or each chunk's extraction):
-- Determine the stage's input file(s) and output file(s) per the table above.
-- If the output file exists and its mtime is newer than every input file's mtime, **skip the stage** and log `stage <name>: skipped (output up to date)`.
-- `--force <stage>` overrides this skip for the named stage.
 
-Dependency edges to honor:
-- outline depends on intake (`normalized.md`).
-- extraction (per chunk) depends on BOTH intake and outline — a stale outline invalidates extraction.
-- reconciler depends on outline AND every `qa-chunks/qa-*.md`.
-- clustering and drafting depend on the reconciled `qa.md`.
+Before invoking any stage:
+- Determine its input and output files from the table for the active path.
+- If all output files exist and their mtime is newer than every input file's mtime, **skip the stage** and log `stage <name>: skipped (output up to date)`.
+- `--force <stage>` overrides this for the named stage.
 
-When `--force` cascades: forcing an earlier stage means later stages will re-run naturally as their inputs change.
+Dependency edges — fast path:
+- `evidence` depends on `normalized.md`.
+- `clustering` and `drafting` depend on `qa.md`.
+- `devrev-export` depends on every file in `requirements/`.
+
+Dependency edges — full path:
+- `outline` depends on `normalized.md`.
+- `extraction` (each chunk) depends on both `normalized.md` and `outline.md` — a stale outline invalidates all extraction.
+- `reconciler` depends on `outline.md` AND every `qa-chunks/qa-*.md`.
+- `clustering` and `drafting` depend on `qa.md`.
+- `devrev-export` depends on every file in `requirements/`.
+
+`--force` cascades naturally: forcing an earlier stage changes its output, which makes later stages' outputs stale, which causes them to re-run.
 
 ## Stage checkpoints
-After each stage that ran (not skipped), unless `--auto`:
-- Print a one-line summary.
-- Pause and ask the user "Continue? [Y/n]". On `n`, stop the pipeline; user can resume by re-invoking.
 
-Computing summaries:
-- intake: `chunks=<N>`, `format_warning=<value>`.
-- outline: `themes=<N>`, `entities=<N>`, `walk_backs=<N>`.
-- extraction (each chunk): `chunk=<N>`, `total_qa=<int>`, `dropped=<int>`.
-- reconciler: `qa_before_dedup=<int>`, `qa_after_dedup=<int>`, `walk_backs_resolved=<int>`.
-- clustering: `total_clusters=<int>`, `unclustered_qa=<int>`.
-- drafting: `tickets_written=<int>`, `dropped_entries=<int>`.
+After each stage that ran (not skipped), unless `--auto`:
+- Print a one-line summary (see below).
+- Pause and ask "Continue? [Y/n]". On `n`, stop; user can resume by re-invoking.
+
+Summaries:
+- intake: `chunks=<N>`, `format_warning=<value>`, `path=fast|full`
+- evidence (fast path): `qa=<int>`, `dropped=<int>`, `walk_backs=<N>`
+- outline (full path): `themes=<N>`, `entities=<N>`, `walk_backs=<N>`
+- extraction/chunk (full path): `chunk=<N>`, `total_qa=<int>`, `dropped=<int>`
+- reconciler (full path): `qa_before_dedup=<int>`, `qa_after_dedup=<int>`, `walk_backs_resolved=<int>`
+- clustering: `total_clusters=<int>`, `unclustered_qa=<int>`
+- drafting: `briefs_written=<int>`, `dropped_entries=<int>`
+- devrev-export: `devrev_files_written=<int>`, `blocker_promotions=<int>`
 
 ## Logging
-Append a line per stage (or per per-chunk extraction) to `<meeting_folder>/run.log`:
+
+Append one line per stage to `<meeting_folder>/run.log`:
 
 ```
 <ISO-8601 timestamp> <stage>[/<chunk>] <status> <summary>
 ```
 
-`<status>` ∈ {`started`, `skipped`, `done`, `failed`}.
+`<status>` ∈ {`started`, `skipped`, `done`, `failed`}. Include `path=fast` or `path=full` in the intake log line.
 
 ## Failure handling
-If any stage fails, halt the pipeline, log `failed`, and print a one-line remediation hint. Examples:
 
 | Failure | Hint |
 |---|---|
 | `normalized.md` missing | Run `transcript-intake` on this folder first. |
-| `outline.md` missing when extraction tries to run | Run `meeting-outline` first; check that `normalized.md` is well-formed (frontmatter `chunks: <int>` present). |
-| extraction produced zero grounded Q&As for a chunk | Inspect `qa-chunks/qa-<N>.md` — the chunk may be all compliments. Compare against `outline.md` themes for that chunk to confirm. |
-| reconciler's walk-back coverage gaps section non-empty | A walk-back declared in `outline.md` couldn't be located in qa-chunks. Re-run extraction for the chunks containing the ask and the retraction. |
-| ticket count != clusters minus dropped | Check `dropped.md` for cluster-level drops and `tickets/` for files; one or the other is out of date. |
+| `chunks:` missing from `normalized.md` frontmatter | Re-run intake — frontmatter is malformed. |
+| `fast-evidence` called but `chunks` ≠ 1 | Path selection logic error — should not happen. Force `intake` to refresh chunk count, then re-run. |
+| `outline.md` missing when extraction runs (full path) | Force `outline` to regenerate it. |
+| Extraction produced zero grounded Q&As for a chunk | Inspect `qa-chunks/qa-<N>.md` — chunk may be compliments-only. Check against `outline.md` themes for that chunk. |
+| Walk-back coverage gaps in `qa.md` | A walk-back in `outline.md` wasn't found in qa-chunks. Re-run extraction for the relevant chunks. |
+| Brief count ≠ clusters minus dropped | Check `dropped.md` and `requirements/` — one is stale. |
 
 ## Constraints
 - Do not modify files outside the meeting folder.
@@ -82,13 +125,9 @@ If any stage fails, halt the pipeline, log `failed`, and print a one-line remedi
 - Do not parse skill outputs heuristically beyond reading frontmatter for summary counts.
 
 ## Acceptance test
-Against a fresh `meetings/<slug>/source.*` (no prior outputs), `meeting-to-tickets --auto` produces:
-- `normalized.md` (intake)
-- `outline.md` (outline)
-- `qa-chunks/qa-1.md` … `qa-chunks/qa-<N>.md` (one per chunk)
-- `qa.md` (reconciled, deduped, with `walk_backs_resolved` equal to `outline.md`'s declared walk-back count)
-- `clusters.md`
-- `tickets/*.md` (+ `dropped.md` for refused clusters)
-- `run.log` recording every stage and per-chunk extraction call
 
-Running it again is a no-op (every stage skipped). `--force outline` reruns outline, extraction (all chunks), reconciler, clustering, and drafting because each depends on the previous. `--force <one chunk's extraction>` is not supported at this level — force the whole extraction stage if needed.
+**Fast path:** Against a fresh single-chunk `source.*`, `--auto` produces `normalized.md`, `outline.md`, `qa-chunks/qa-1.md`, `qa.md`, `clusters.md`, `requirements/*.md`, and `run.log` with `path=fast` in the intake line. Total LLM stages: 3.
+
+**Full path:** Against a fresh multi-chunk `source.*`, `--auto` produces `normalized.md`, `outline.md`, `qa-chunks/qa-1.md` … `qa-chunks/qa-<N>.md`, `qa.md`, `clusters.md`, `requirements/*.md`, and `run.log` with `path=full`. Total LLM stages: 4 + N (where N = chunk count).
+
+**Both paths:** Running again is a no-op (all stages skipped). Output files are format-identical regardless of which path produced them.
