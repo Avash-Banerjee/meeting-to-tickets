@@ -44,7 +44,7 @@ Optional export adapter (runs by default, skip with `--no-devrev`):
 
 | Stage | Skill | Output |
 |---|---|---|
-| devrev-compactor | `devrev-compactor` | `devrev/*.md` |
+| devrev-export | `requirements-to-devrev` | `devrev/*.md` |
 
 Invoke the orchestrator; do not manually chain. The orchestrator handles path selection, idempotency, per-chunk extraction loops, and run-log appending.
 

@@ -2,22 +2,25 @@
 
 A Claude Code / Agent SDK plugin that turns meeting transcripts into DevRev-ready ticket drafts on disk, with *The Mom's Test* discipline at every stage.
 
-## Pipeline (7 stages)
+## Pipeline (adaptive: 5-stage fast path / 7-stage full path)
 
 ```
-source.* ──▶ normalized.md ──▶ outline.md ──▶ qa-chunks/qa-N.md ──▶ qa.md
-            (transcript-intake)  (meeting-outline)  (moms-test-extraction)  (qa-reconciler)
+Fast path (single-chunk transcripts — most discovery calls):
+source.* ──▶ normalized.md ──▶ outline.md + qa-chunks/qa-1.md + qa.md ──▶ clusters.md ──▶ requirements/*.md ──▶ devrev/*.md
+            (transcript-intake)  (fast-evidence — single pass)               (theme-clustering)  (requirements-drafting)  (requirements-to-devrev)
+
+Full path (multi-chunk transcripts — long calls, ≥45 min):
+source.* ──▶ normalized.md ──▶ outline.md ──▶ qa-chunks/qa-N.md ──▶ qa.md ──▶ clusters.md ──▶ requirements/*.md ──▶ devrev/*.md
+            (transcript-intake)  (meeting-outline)  (moms-test-extraction)  (qa-reconciler)  (theme-clustering)  (requirements-drafting)  (requirements-to-devrev)
                                                        per chunk
-                            │
-                            └──▶ clusters.md ──▶ tickets/*.md ──▶ devrev/*.md
-                                  (theme-clustering)  (ticket-drafting)  (devrev-compactor)
-                                                                          optional, skip with --no-devrev
 ```
 
-The `meeting-to-tickets` skill chains all seven stages with checkpoints, idempotency, and a run.log. Two output artifacts per meeting:
+The `meeting-to-tickets` orchestrator picks the path automatically from `chunks: N` in the intake frontmatter, with checkpoints, idempotency, and a run.log. The DevRev export stage is optional — skip with `--no-devrev` if you only want the neutral requirement briefs.
 
-- **`tickets/*.md`** — PM-review epic-shaped markdown with full Mom's-Test Description, Business Goal, Acceptance Criteria, Priority Hint, Open Questions, Evidence trail.
-- **`devrev/*.md`** — engineering-handoff compact markdown with DevRev-canonical frontmatter (type/severity/applies_to_part), one-paragraph summary, verbatim AC, top evidence, source link.
+Two output artifacts per meeting:
+
+- **`requirements/*.md`** — neutral, tool-agnostic requirement briefs (one per cluster). PM-review shape with Problem / Evidence / Underlying need / Acceptance criteria / Dependencies / Open questions / Priority signal / Source. No DevRev/Jira/GitHub fields baked in.
+- **`devrev/*.md`** — engineering-handoff DevRev-ready ticket per brief. Hybrid template adapting by requirements type (`problem`/`capability_gap`/`constraint`) with frontmatter for DevRev's data model. Verbatim transcript quotes stay in the requirements brief; the DevRev file is lean and copy-paste-ready.
 
 ## Install
 
@@ -25,7 +28,7 @@ This project ships in two forms — choose based on whether you want to use it o
 
 ### As a Claude Code plugin (for distribution / sharing)
 
-The project root is a Claude Code plugin: `.claude-plugin/plugin.json` manifest, `commands/call-to-ticket.md` slash command, `skills/` skill pack (8 skills), and `scripts/` deterministic helpers.
+The project root is a Claude Code plugin: `.claude-plugin/plugin.json` manifest, `commands/call-to-ticket.md` slash command, `skills/` skill pack (10 skills), `.claude/settings.json` permission allowlist for pipeline writes, and `scripts/` deterministic helpers.
 
 ```bash
 # 1. Clone into the user's plugins directory
@@ -40,23 +43,25 @@ mkdir -p ~/.claude/commands
 ln -s ~/.claude/plugins/meeting-to-tickets/commands/call-to-ticket.md \
       ~/.claude/commands/call-to-ticket.md
 
-# 4. Symlink all 8 skills so Claude Code can invoke them by name
+# 4. Symlink all skills so Claude Code can invoke them by name
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/meeting-to-tickets/SKILL.md \
       ~/.claude/commands/meeting-to-tickets.md
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/transcript-intake/SKILL.md \
       ~/.claude/commands/transcript-intake.md
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/meeting-outline/SKILL.md \
       ~/.claude/commands/meeting-outline.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/fast-evidence/SKILL.md \
+      ~/.claude/commands/fast-evidence.md
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/moms-test-extraction/SKILL.md \
       ~/.claude/commands/moms-test-extraction.md
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/qa-reconciler/SKILL.md \
       ~/.claude/commands/qa-reconciler.md
 ln -s ~/.claude/plugins/meeting-to-tickets/skills/theme-clustering/SKILL.md \
       ~/.claude/commands/theme-clustering.md
-ln -s ~/.claude/plugins/meeting-to-tickets/skills/ticket-drafting/SKILL.md \
-      ~/.claude/commands/ticket-drafting.md
-ln -s ~/.claude/plugins/meeting-to-tickets/skills/devrev-compactor/SKILL.md \
-      ~/.claude/commands/devrev-compactor.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/requirements-drafting/SKILL.md \
+      ~/.claude/commands/requirements-drafting.md
+ln -s ~/.claude/plugins/meeting-to-tickets/skills/requirements-to-devrev/SKILL.md \
+      ~/.claude/commands/requirements-to-devrev.md
 ```
 
 > **Why the symlinks?** Claude Code's local plugin system does not auto-discover `commands/` or `skills/` from `~/.claude/plugins/`. The only directory it reads custom slash commands and skills from is `~/.claude/commands/`. The symlinks above wire the two together without duplicating files.
@@ -87,14 +92,15 @@ result = await agent.run_skill(
     args={"meeting_folder": "meetings/acme-discovery/"},
 )
 
-# Tickets live at meetings/acme-discovery/tickets/*.md
-# Compact DevRev-shape items at meetings/acme-discovery/devrev/*.md
+# Neutral requirement briefs live at meetings/acme-discovery/requirements/*.md
+# DevRev-ready tickets at meetings/acme-discovery/devrev/*.md
 ```
 
 The SDK provides the Skill, Bash, Read, Write tools that the skills and scripts depend on. The plugin exposes:
-- 8 skills under `skills/` (orchestrator + 7 stage skills)
+- 10 skills under `skills/` (orchestrator + 9 stage skills)
 - 1 slash command under `commands/`
 - 2 Python utilities under `scripts/` (`intake.py`, `check_invariants.py`)
+- Plugin-shipped permission allowlist under `.claude/settings.json`
 
 For agents that don't speak slash commands, just call the orchestrator skill by name with the meeting folder as input.
 
@@ -113,17 +119,17 @@ In this mode there is no plugin install — you invoke the skills directly from 
 1. Create a folder for the meeting: `meetings/2026-06-19-acme-discovery/`.
 2. Drop the transcript in as `source.txt` (or `.vtt`, `.srt`, `.md`).
 3. From Claude Code, type `/call-to-ticket meetings/2026-06-19-acme-discovery/` — or invoke the `meeting-to-tickets` orchestrator skill against the folder.
-4. Review `tickets/*.md` (epic-shaped, for PM review).
-5. Push `devrev/*.md` (compact, DevRev-canonical) to DevRev via copy-paste or your own API integration.
+4. Review `requirements/*.md` (neutral, tool-agnostic briefs — for PM review).
+5. Push `devrev/*.md` (DevRev-ready ticket per brief) to DevRev via copy-paste or your own API integration.
 
 Optional flags:
-- `--no-devrev` — skip stage 7 if you only want PM-review tickets.
+- `--no-devrev` — skip the DevRev export stage if you only want neutral requirement briefs.
 - `--auto` (orchestrator) — skip stage confirmation prompts.
-- `--force <stage>` (orchestrator) — rerun a specific stage; valid: `intake|outline|extraction|reconciler|clustering|drafting|devrev`.
+- `--force <stage>` (orchestrator) — rerun a specific stage. Fast path: `intake|evidence|clustering|drafting|devrev-export`. Full path: `intake|outline|extraction|reconciler|clustering|drafting|devrev-export`.
 
 ## Invariants
 
-Run `python scripts/check_invariants.py meetings/<slug>` to validate a meeting folder. Exits 0 if all rigor invariants hold. The checker validates structural integrity, verbatim-quote provenance against `normalized.md`, AC traceability, walk-back coverage, ticket-vs-cluster count parity, intake word-count round-trip, no-internal-scaffolding-in-prose, and the DevRev-canonical field shape on `devrev/*.md`.
+Run `python scripts/check_invariants.py meetings/<slug>` to validate a meeting folder. Exits 0 if all rigor invariants hold. The checker validates structural integrity, verbatim-quote provenance against `normalized.md`, AC traceability, walk-back coverage, brief-vs-cluster count parity, intake word-count round-trip, no-internal-scaffolding-in-prose, and DevRev-canonical field shape on `devrev/*.md` (dual-mode: validates both the new `requirements/`-sourced schema and the legacy `tickets/`-sourced schema).
 
 ## Tests
 
@@ -147,13 +153,15 @@ Run invariants against the committed fixture snapshots as a smoke test:
 | Skill | Role |
 |---|---|
 | `transcript-intake` | Mechanical normalization (Python script under the hood) |
-| `meeting-outline` | Cross-chunk reference index (themes, entities, costs, commitments, walk-backs) |
-| `moms-test-extraction` | Per-chunk Mom's-Test Q&A extraction with outline as context |
-| `qa-reconciler` | Cross-chunk dedup + walk-back resolution into consolidated qa.md |
-| `theme-clustering` | Group Q&As into 1-N themed clusters with suggested DevRev type |
-| `ticket-drafting` | PM-review epic markdown per cluster |
-| `devrev-compactor` | DevRev-canonical compact sibling per ticket |
-| `meeting-to-tickets` | Orchestrator: chains all 7 stages with idempotency |
+| `meeting-outline` | Cross-chunk reference index (themes, entities, costs, commitments, walk-backs). Full path only. |
+| `fast-evidence` | Single-pass outline + extraction + reconciliation for single-chunk transcripts. Fast path only. |
+| `moms-test-extraction` | Per-chunk Mom's-Test Q&A extraction with outline as context. Full path only. |
+| `qa-reconciler` | Cross-chunk dedup + walk-back resolution into consolidated qa.md. Full path only. |
+| `theme-clustering` | Group Q&As into themed clusters with suggested type (problem / capability_gap / constraint) |
+| `requirements-drafting` | Neutral, tool-agnostic requirement brief per cluster |
+| `requirements-to-devrev` | DevRev-ready ticket per brief (hybrid template adapting by requirements type) |
+| `ticket-drafting` | (Legacy) DevRev-coupled epic markdown — superseded by `requirements-drafting` |
+| `meeting-to-tickets` | Orchestrator: picks fast or full path, chains all stages with idempotency |
 
 ## Design
 
