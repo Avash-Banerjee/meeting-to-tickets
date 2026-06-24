@@ -41,6 +41,28 @@ For the chunk you're processing, scan for evidence that answers one or more of:
 
 A Q&A may use one or more lenses; annotate the primary lens in the heading.
 
+## Single-mention grounded asks (discipline rule)
+
+The seven lenses naturally catch recurring themes. They under-catch single-mention asks where a client speaker explicitly takes ownership of a specific concern or follow-up commitment. These get dropped as "compliments" because they were only said once. That's wrong.
+
+A single-mention utterance IS a grounded Q&A when ALL three hold:
+
+1. **The CLIENT said it** — not the vendor / solution-provider. The vendor is the participant who frames themselves as "we will build", "our methodology", "our approach", or who describes the solution. The client is the participant whose problems are being solved and who controls the buy/scope decision.
+
+2. **It carries one of these linguistic patterns** (the pattern matters, not the exact vocabulary — any equivalent phrasing in any language counts):
+   - **Inclusion ask** — "include X in the proposal", "let's add X to the SOW", "make sure we cover X", "we need X to be part of this", "put X in writing"
+   - **Importance flag** — "this is important for us", "we want to track X", "X matters to us", "we need to be careful about X", "make a note of X"
+   - **Stakeholder ownership** — "our compliance team will need X", "our legal team flagged X", "our [team] requires X", "I'll have to check with [stakeholder] about X"
+   - **Concern surfacing** — "what about X?", "I'm worried about X", "we have concerns about X", "how do you handle X?", "we need to think about X"
+
+3. **The substance is concrete enough to act on** — names a topic, capability, constraint, stakeholder, or commitment with enough specificity that a PM could turn it into an acceptance criterion or open question. Reject generic emotional reassurance ("we want this to work well", "we're excited", "this looks great") because there is nothing to act on.
+
+When all three hold, extract as a Q&A under the most appropriate lens (usually lens 4 "stated ask vs. underlying need", lens 6 "frequency and scope", or lens 7 "commitment vs. hedge"). Anchor it on the single client quote. Do NOT drop it as a compliment.
+
+**Why this rule exists:** the natural-recurrence heuristic ("real signals get mentioned multiple times") is wrong for discovery calls. A client mentioning a specific concern once with explicit ownership IS a real signal — they are flagging it for the proposal, not making conversation. Compliance asks, ethics asks, training asks, mobile/platform asks, and stakeholder-specific concerns routinely fail the "did they mention it twice?" test but pass the "did they take ownership of this as a follow-up?" test. The latter is what makes a Q&A grounded.
+
+This rule does NOT change lens 5 (Compliment vs. evidence). Pure praise without behavioral evidence or commitment substance still goes to `## Dropped`. The rule only catches the narrow case of single-mention asks that the recurrence heuristic would otherwise miss.
+
 ## Rigor rules
 - Every Q&A includes at least one **verbatim quote** with the speaker's name. Copy the quote exactly — no paraphrase, no ellipsis-rewrite, no merging.
 - Confidence tag per Q&A:

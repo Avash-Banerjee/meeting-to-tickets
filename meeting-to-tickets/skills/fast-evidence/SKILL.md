@@ -39,6 +39,14 @@ Same rules as the `moms-test-extraction` skill, applied to the full transcript:
 - Compliments without concrete past behavior go to `## Dropped`, not into a Q&A.
 - Walk-backs from the outline each get exactly one Q&A under the "stated ask vs. underlying need" lens, with both the ask quote and the retraction quote in `**Quotes:**`.
 
+**Single-mention grounded asks (discipline rule).** The seven lenses naturally catch recurring themes. They under-catch single-mention asks where a client speaker takes explicit ownership of a specific concern or follow-up. A single client utterance IS a grounded Q&A — not a dropped compliment — when ALL three hold:
+
+1. **The CLIENT said it** (not the vendor/solution-provider). The vendor frames themselves as "we will build", "our methodology", "our approach". The client is the participant whose problems are being solved.
+2. **It carries one of these linguistic patterns** (pattern matters, not exact vocabulary): **inclusion ask** ("include X in the proposal", "add X to the SOW", "cover X"); **importance flag** ("this is important", "we want to track X", "X matters", "make a note of X"); **stakeholder ownership** ("our compliance team will need X", "our legal team flagged X", "I'll need to check with [team]"); **concern surfacing** ("what about X?", "I'm worried about X", "how do you handle X?").
+3. **The substance is concrete enough to act on** — names a topic, capability, constraint, or stakeholder with enough specificity to become an AC or open question. Pure emotional reassurance ("we want this to work", "we're excited") still goes to `## Dropped`.
+
+When all three hold, extract as a Q&A under the most appropriate lens (usually 4, 6, or 7). Anchor on the single client quote. Discovery calls routinely surface compliance / ethics / training / mobile / stakeholder-specific concerns once with explicit ownership — these are grounded signals, not noise.
+
 ### 3. Write outputs
 
 Write three files. Formats below are the exact schemas downstream tools expect — do not deviate.

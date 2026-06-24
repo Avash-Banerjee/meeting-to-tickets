@@ -89,9 +89,39 @@ When in doubt, use `problem`. Over-labelling as `capability_gap` or `constraint`
 - **Problem statement is solution-free.** Never mention a feature, system, or fix in the Problem statement section. Only what hurts. The acceptance criteria are where solutions get defined.
 - **Verbatim quotes stay verbatim.** Copy exactly from `qa.md` (which copied from `normalized.md`). No paraphrase, no compression.
 - **No internal scaffolding in prose.** Cluster IDs (`C1`), Q-IDs (`Q5`), and chunk indices appear only in frontmatter and the Source section — never in the brief body.
-- **Inferred criteria are flagged.** Acceptance criteria that don't trace to a quote get `(inferred)` prefix so reviewers know to challenge them.
 - **Clusters with only inferred Q&As are dropped.** No grounded evidence = no brief. Append to `dropped.md`.
 - **Open questions are real gaps.** Only list questions the transcript genuinely could not answer — questions the reviewer needs to resolve before work begins.
+
+### Acceptance criteria sourcing discipline
+
+When you write each acceptance criterion, identify WHO proposed the substance. There are two clean categories:
+
+- **Client-sourced** (asked, agreed, confirmed): The client either explicitly asked for this, agreed to it when proposed, or actively confirmed acceptance. These criteria remain **unmarked**.
+- **Vendor-sourced** (proposed by the solution-side speaker without explicit client confirmation of the specifics): The vendor proposed an approach, a number, a methodology, or product terminology, and the client said "sounds good", "that's reasonable", or didn't object. Mark these **`(inferred)`** so the PM knows to challenge before estimation.
+
+How to identify the vendor: the vendor frames themselves as "we will build", "our methodology", "our approach", or describes the solution. The client is the participant whose problems are being solved and who controls the buy/scope decision.
+
+Examples:
+- Vendor proposes "99.9% uptime SLA with 1-hour critical response" and client says "that's reasonable" → mark `(inferred)`. The client did not ask for these specific numbers; they accepted a proposal.
+- Vendor uses product terminology like "Smart Baseline modelling" or "managed retraining pipeline" → mark `(inferred)`. The terminology is vendor-side; the client did not request it by name.
+- Client says "we have a hard requirement on EU customer data" → unmarked. Client-initiated, specific.
+- Client says "Slack is a must" → unmarked. Direct client commitment.
+
+**Why this rule:** the PM reading the brief needs to know which criteria are locked-in client requirements and which are vendor proposals the client has only soft-accepted. Treating vendor-proposed specifics as fixed AC causes scope disputes later when the client renegotiates.
+
+### Acceptance criteria traceability discipline
+
+Every NON-`(inferred)` acceptance criterion must trace to at least one quote in `qa.md`, under one of this cluster's listed Q&A items. The test: if a PM follows the `Source` link to `qa.md` and reads the quoted evidence, can they verify the AC reflects something a client speaker actually said?
+
+If you find yourself wanting to write an AC whose substance is NOT covered by any quote under this cluster's Q&As:
+
+1. **First check** — is there a quote in another Q&A you overlooked that supports this AC? If yes, add that Q-ID to the Source line.
+2. **If genuinely uncovered** — mark the AC `(inferred)` AND add a parenthetical noting the source (e.g., "from [speaker] at [timestamp] — not extracted as a Q&A").
+3. **If even `(inferred)` feels too strong** — move it to `## Open questions` instead.
+
+**Why this rule:** the brief is making client claims it must be able to back up. The Source link must lead a reviewer to verifiable evidence. An AC naming a specific feature (e.g., "mobile-responsive executive view") that doesn't appear in any quote under the cited Q&As is making a claim with no audit trail.
+
+This rule often surfaces a gap in the extraction stage — if you keep finding yourself wanting to add ungrounded ACs that match the single-mention grounded-ask pattern (see `fast-evidence` / `moms-test-extraction`), the qa.md may have missed real client signals. In that case prefer flagging in `## Open questions` rather than writing an unsupported AC; the gap is then visible to the reviewer.
 
 ## What makes a good brief
 
