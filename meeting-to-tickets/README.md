@@ -28,7 +28,7 @@ This project ships in two forms — choose based on whether you want to use it o
 
 ### As a Claude Code plugin (for distribution / sharing)
 
-The project root is a Claude Code plugin: `.claude-plugin/plugin.json` manifest, `commands/call-to-ticket.md` slash command, `skills/` skill pack (10 skills), `.claude/settings.json` permission allowlist for pipeline writes, and `scripts/` deterministic helpers.
+The project root is a Claude Code plugin: `.claude-plugin/plugin.json` manifest, `commands/call-to-ticket.md` slash command, `skills/` skill pack (9 skills), `.claude/settings.json` permission allowlist for pipeline writes, and `scripts/` deterministic helpers.
 
 ```bash
 # 1. Clone into the user's plugins directory
@@ -97,7 +97,7 @@ result = await agent.run_skill(
 ```
 
 The SDK provides the Skill, Bash, Read, Write tools that the skills and scripts depend on. The plugin exposes:
-- 10 skills under `skills/` (orchestrator + 9 stage skills)
+- 9 skills under `skills/` (orchestrator + 8 stage skills)
 - 1 slash command under `commands/`
 - 2 Python utilities under `scripts/` (`intake.py`, `check_invariants.py`)
 - Plugin-shipped permission allowlist under `.claude/settings.json`
@@ -160,7 +160,6 @@ Run invariants against the committed fixture snapshots as a smoke test:
 | `theme-clustering` | Group Q&As into themed clusters with suggested type (problem / capability_gap / constraint) |
 | `requirements-drafting` | Neutral, tool-agnostic requirement brief per cluster |
 | `requirements-to-devrev` | DevRev-ready ticket per brief (hybrid template adapting by requirements type) |
-| `ticket-drafting` | (Legacy) DevRev-coupled epic markdown — superseded by `requirements-drafting` |
 | `meeting-to-tickets` | Orchestrator: picks fast or full path, chains all stages with idempotency |
 
 ## Design
