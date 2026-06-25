@@ -79,10 +79,26 @@ Choose the type that best describes the cluster's nature:
 - **capability_gap** — a workaround exists but it doesn't scale, breaks under load, or causes regular downstream pain. Buildable now; the workaround tells you what the MVP needs to beat.
   *Reviewer action:* Ask "is the workaround good enough to delay this, and what's the breaking point?" The current workaround described in Evidence is the baseline the solution must demonstrably improve on.
 
-- **constraint** — a hard boundary the solution must satisfy before dependent work can start. Not a thing to build — a thing to confirm and design around. Common sources: a third-party API that must exist, a regulatory requirement, a trust condition set by the client.
+- **constraint** — a hard boundary the solution must satisfy before dependent work can start. Not a thing to build — a thing to confirm and design around. Common sources: a third-party API that must exist, a regulatory requirement, a trust condition set by the client, a stakeholder-gated approval (e.g., the client's compliance team must sign off).
   *Reviewer action:* Identify which other briefs list this as a dependency. Sequence this before those briefs. The first acceptance criterion of a constraint brief is usually a discovery or confirmation task, not a build task.
 
-When in doubt, use `problem`. Over-labelling as `capability_gap` or `constraint` is a common mistake; reserve those for clusters that are clearly not about pain but about limits or prerequisites.
+- **task** — a discrete piece of operational, process, or handover work with a clear end-state. Distinct from a constraint (which is about confirming a boundary) and distinct from a capability_gap (which is about building or improving a system capability). Typical task briefs: training programmes, written handover plans, documentation packages, scheduled configuration work, onboarding materials.
+  *Reviewer action:* Ask "does this task have a defined time window and a clear acceptance condition?" Tasks should be scoped enough that an owner can produce a delivery date.
+
+When in doubt, use `problem`. Over-labelling as `capability_gap`, `constraint`, or `task` is a common mistake — `problem` is the right default unless the cluster clearly fits one of the other shapes (workaround-already-exists, hard-boundary-to-confirm, or discrete-process-work).
+
+### Mapping from upstream clustering
+
+The `theme-clustering` stage suggests a type using its own vocabulary (`feature` / `task` / `problem` / `constraint`). Translate to this stage's vocabulary using:
+
+| Clustering type | Requirements type | Notes |
+|---|---|---|
+| `feature` | `capability_gap` | Most "feature" clusters describe a capability gap with a current workaround. If the cluster is pure greenfield with no current workaround named, use `problem` instead. |
+| `task` | `task` | Direct map. Discrete operational/process work. |
+| `problem` | `problem` | Direct map. |
+| `constraint` | `constraint` | Direct map. |
+
+The drafter has final authority — re-classify if a closer reading of the cluster's Q&As reveals a different work shape than clustering suggested. The clustering type is a suggestion, not a contract.
 
 ## Rules
 

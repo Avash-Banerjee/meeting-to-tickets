@@ -50,10 +50,17 @@ Lean toward MORE clusters over stuffed clusters. 10 well-scoped tickets each goi
 ## Suggested DevRev type
 For each cluster, suggest one of:
 - `feature` — describes a new capability the client wants.
-- `task` — a discrete change to an existing capability (small scope, well-shaped).
+- `task` — a discrete change to an existing capability OR a discrete piece of operational/process work (e.g., training programme, handover plan, documentation, configuration). Small scope, well-shaped, clear end-state.
 - `problem` — an existing pain not yet shaped into a specific solution.
+- `constraint` — a hard boundary the cluster's work must satisfy or confirm before dependent work can start. Includes regulatory/compliance requirements, commercial terms, third-party gating approvals (e.g., compliance team review), and technical limits the client has explicitly named. Not a thing to build — a thing to confirm and design around.
 
-Lean toward `problem` when the cluster is mostly Q&As from lenses 1 (problem in life), 2 (workarounds), 3 (cost). Lean toward `feature` when the cluster includes lens 4 (underlying need) framed as a new capability. Use `task` for narrow, concrete changes.
+Type-selection guidance:
+- Lean toward `problem` when the cluster is mostly Q&As from lenses 1 (problem in life), 2 (workarounds), 3 (cost).
+- Lean toward `feature` when the cluster includes lens 4 (underlying need) framed as a new capability the platform should provide.
+- Lean toward `task` for narrow, concrete changes OR for discrete operational/process work (training, documentation, scheduled handovers).
+- Lean toward `constraint` when the cluster is about confirming or locking in a boundary (compliance approval, SOW terms, regulatory requirements, stakeholder-gated approvals). The cluster's deliverable is "confirmation obtained", not "feature built".
+
+This type is a *suggestion* — the requirements drafter (next stage) has authority to re-classify based on closer reading. But getting it right at clustering reduces churn downstream.
 
 ## Output shape
 

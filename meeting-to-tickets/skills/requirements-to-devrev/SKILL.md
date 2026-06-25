@@ -24,7 +24,10 @@ A path to a meeting folder. Must already contain `requirements/*.md` files.
 | `problem` | `feature_request` | Pain identified; solution needs to be designed |
 | `capability_gap` | `improvement` | Workaround exists; build the real thing |
 | `constraint` | `task` | Discovery / validation activity, not a build |
+| `task` | `task` | Discrete operational/process work — direct mapping |
 | (only if brief explicitly described a defect) | `bug` | Bug fix |
+
+DevRev's `task` is a generic discrete-work bucket. Both `constraint` and `task` from requirements export as `task` in DevRev — the title and Objective/Success Criteria sections make clear which is which (a constraint's Objective is "confirm X"; a task's Objective is "deliver Y"). DevRev does not need to distinguish at the type level.
 
 ## Severity mapping
 

@@ -701,7 +701,7 @@ def collect_qa_ids(path: pathlib.Path) -> set[str]:
 
 REQUIRED_CLUSTERS_KEYS = {"total_clusters", "unclustered_qa"}
 REQUIRED_TICKET_KEYS = {"type", "priority_hint", "source_meeting", "cluster_id"}
-ALLOWED_TYPES = {"feature", "task", "problem"}
+ALLOWED_TYPES = {"feature", "task", "problem", "constraint"}
 ALLOWED_PRIORITIES = {"low", "medium", "high"}
 
 
