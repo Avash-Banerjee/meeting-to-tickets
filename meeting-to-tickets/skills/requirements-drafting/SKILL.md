@@ -18,7 +18,7 @@ A path to a meeting folder. The folder must already contain `clusters.md`, `qa.m
   ```
   - C<n> (<theme>) — every member Q&A is inferred; no grounded evidence to support a requirement.
   ```
-- **PARALLEL WRITES — STRICT.** Emit all brief `Write` calls as separate tool_use blocks inside ONE assistant response. They MUST appear in the SAME response, not split across N response turns. Splitting them is wrong: it costs N× the round-trips, triggers N separate permission prompts for the user, and serialises a workload that has zero data dependencies. Each brief is independent; all inputs are already resolved in `clusters.md` and `qa.md` before this stage starts. If you find yourself acknowledging or summarising between writes, you are doing it wrong; revert and batch.
+- **PARALLEL WRITES — STRICT.** Emit all brief `Write` calls as separate tool_use blocks inside ONE assistant response. They MUST appear in the SAME response, not split across N response turns. Splitting them is wrong: it costs N× the round-trips, triggers N separate permission prompts for the user, and serialises a workload that has zero data dependencies. Each brief is independent; all inputs are already resolved in `clusters.md` and `qa.md` before this stage starts.
 - Write nothing else.
 
 ## Brief template
