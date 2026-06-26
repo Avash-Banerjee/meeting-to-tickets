@@ -10,7 +10,7 @@ You are turning themed clusters of Mom's-Test Q&As into neutral requirements bri
 The output is deliberately tool-agnostic. No DevRev fields, no Jira IDs, no GitHub labels. The brief captures what the problem is and what done looks like; export adapters (DevRev, Jira, GitHub) are a separate downstream step.
 
 ## Inputs
-A path to a meeting folder. The folder must already contain `clusters.md` and `qa.md`.
+A path to a meeting folder. The folder must already contain `clusters.md`, `qa.md`, and `outline.md`.
 
 ## Output
 - One markdown file per cluster at `<meeting_folder>/requirements/<NN>-<slug>.md`. `<NN>` is the two-digit cluster index; `<slug>` is kebab-case from the theme name.
@@ -25,9 +25,10 @@ A path to a meeting folder. The folder must already contain `clusters.md` and `q
 
 ```markdown
 ---
-type: problem | capability_gap | constraint
+type: problem | capability_gap | constraint | task | discovery
 priority: low | medium | high
 status: draft
+confidence: grounded | mixed | inferred
 source_meeting: <meeting_slug>
 cluster_id: C<n>
 ---
@@ -45,7 +46,7 @@ cluster_id: C<n>
 
 **Who has this problem:** <the person(s) affected and how often>
 **Cost of doing nothing:** <quantified or qualitative — time lost, revenue, frustration, risk>
-**What they've already tried:** <workarounds, manual processes, past tools — or "none mentioned">
+**What they've already tried:** <past behaviour only — workarounds, manual processes, or tools already in use at the time of the call. Do not include future plans or intentions. If the only "workaround" described is something the client plans to do, write "none mentioned">
 
 ## Underlying need
 <One short paragraph. Separate what they asked for from what they actually need. If there was a walk-back in the transcript, note it here: "Initially asked for X; rescoped to Y when Z became clear.">
@@ -55,6 +56,9 @@ cluster_id: C<n>
 - [ ] <Another criterion.>
 - [ ] (inferred) <Criterion not directly supported by a quote — flagged for reviewer to challenge.>
 
+## Success metric
+<Only include this section when the transcript explicitly named a measurable outcome for what "working in production" looks like — a KPI, a ratio, a user behaviour the client said they would track. One or two sentences. If no success metric was surfaced in the transcript, omit this section entirely — do not write a placeholder.>
+
 ## Dependencies
 - <What must exist before this can be built — only if the transcript named it explicitly. Omit section entirely if none mentioned.>
 
@@ -63,6 +67,9 @@ cluster_id: C<n>
 
 ## Priority signal
 **<low | medium | high>** — <one line: how the client framed urgency, frequency, or blocking effect>
+
+## Next action
+- <Who does what next — derived by cross-referencing the outline's ## Commitments section against this brief's cluster. One line per relevant commitment: person, action, and whether it gates estimation. Omit this section entirely if no outline commitment relates to this brief.>
 
 ## Source
 - `qa.md` → Q<i>, Q<j>, ...
@@ -85,7 +92,10 @@ Choose the type that best describes the cluster's nature:
 - **task** — a discrete piece of operational, process, or handover work with a clear end-state. Distinct from a constraint (which is about confirming a boundary) and distinct from a capability_gap (which is about building or improving a system capability). Typical task briefs: training programmes, written handover plans, documentation packages, scheduled configuration work, onboarding materials.
   *Reviewer action:* Ask "does this task have a defined time window and a clear acceptance condition?" Tasks should be scoped enough that an owner can produce a delivery date.
 
-When in doubt, use `problem`. Over-labelling as `capability_gap`, `constraint`, or `task` is a common mistake — `problem` is the right default unless the cluster clearly fits one of the other shapes (workaround-already-exists, hard-boundary-to-confirm, or discrete-process-work).
+- **discovery** — the immediate deliverable is an investigation output, not a built capability. Use when the cluster's acceptance criteria are outputs like "test X and document the behavior", "run a discovery call and capture the user journey", or "produce a technical feasibility assessment." The problem is real but not yet understood well enough to estimate or design. Distinct from `problem` (which is ready for design exploration) and from `constraint` (which is a boundary to confirm, not a behavior to investigate). Typical discovery briefs: behavior audits, feasibility spikes, pre-requirements customer calls.
+  *Reviewer action:* Ask "what does done look like, and who owns it?" Discovery briefs should produce a named artifact (a doc, a decision, a test result) with a clear owner — otherwise they will sit in the backlog indefinitely.
+
+When in doubt, use `problem`. Over-labelling as `capability_gap`, `constraint`, `task`, or `discovery` is a common mistake — `problem` is the right default unless the cluster clearly fits one of the other shapes. Use `discovery` specifically when the ACs are investigation outputs rather than feature or process deliverables.
 
 ### Mapping from upstream clustering
 
@@ -95,7 +105,7 @@ The `theme-clustering` stage suggests a type using its own vocabulary (`feature`
 |---|---|---|
 | `feature` | `capability_gap` | Most "feature" clusters describe a capability gap with a current workaround. If the cluster is pure greenfield with no current workaround named, use `problem` instead. |
 | `task` | `task` | Direct map. Discrete operational/process work. |
-| `problem` | `problem` | Direct map. |
+| `problem` | `problem` or `discovery` | Direct map to `problem`. Downgrade to `discovery` when the cluster's ACs are investigation outputs (test X, run a call, produce a feasibility doc) rather than feature or process deliverables — the problem is real but not yet understood well enough to design. |
 | `constraint` | `constraint` | Direct map. |
 
 The drafter has final authority — re-classify if a closer reading of the cluster's Q&As reveals a different work shape than clustering suggested. The clustering type is a suggestion, not a contract.
@@ -107,6 +117,10 @@ The drafter has final authority — re-classify if a closer reading of the clust
 - **No internal scaffolding in prose.** Cluster IDs (`C1`), Q-IDs (`Q5`), and chunk indices appear only in frontmatter and the Source section — never in the brief body.
 - **Clusters with only inferred Q&As are dropped.** No grounded evidence = no brief. Append to `dropped.md`.
 - **Open questions are real gaps.** Only list questions the transcript genuinely could not answer — questions the reviewer needs to resolve before work begins.
+- **`confidence:` is a brief-level signal, not per-AC.** Set it in frontmatter using these definitions: `grounded` — primary evidence is client-stated and most ACs are unmarked; `mixed` — a blend of client and vendor evidence, or a meaningful share of ACs are `(inferred)`; `inferred` — primary evidence comes from the vendor/solution-side speaker, or the cluster is built mainly on open questions rather than confirmed client pain. This lets a PM sort briefs by certainty before sprint planning without opening each file.
+- **`## Success metric` is conditional — omit if not in transcript.** Only write this section when the transcript explicitly named how success would be measured in production (a KPI, a ratio, a behaviour the client said they'd track). Do not invent a success metric, do not write a placeholder. If the transcript did not surface one, omit the section entirely.
+- **`## Next action` is derived from the outline's commitments.** Before writing each brief, read `outline.md → ## Commitments`. For any commitment that directly relates to this brief's cluster — e.g. "clarify X with client before scoping", "deliver Y by end of month" — add one line per commitment: who, what, and whether it is a prerequisite for estimation. If no commitment relates to this brief, omit the section entirely.
+- **Uncertain evidence → hedged problem statement.** When the primary evidence for a brief consists of a speaker *asking whether a problem exists* rather than confirming it ("can the AI already handle this?", "is this something we need to fine-tune?", "would this be an issue?"), the problem statement must reflect that uncertainty. Use hedged language ("may", "appears to", "unclear whether") — do not assert the problem confidently. If no speaker in the transcript confirmed the gap is real, escalate the item to an `## Open questions` entry in the most relevant brief rather than writing an independent problem statement around it.
 
 ### Acceptance criteria sourcing discipline
 
@@ -124,6 +138,8 @@ Examples:
 - Client says "Slack is a must" → unmarked. Direct client commitment.
 
 **Why this rule:** the PM reading the brief needs to know which criteria are locked-in client requirements and which are vendor proposals the client has only soft-accepted. Treating vendor-proposed specifics as fixed AC causes scope disputes later when the client renegotiates.
+
+The same client-vs-vendor provenance logic applies to the **problem statement itself**, not only the ACs. If the core evidence for a cluster comes from the **vendor/solution-side speaker** identifying a gap themselves (e.g., a product manager saying "now that I think about it, this is a gap" or a CS team member flagging something the client never mentioned) rather than the client surfacing confirmed pain, add a one-sentence disclosure at the end of `## Problem statement`: "Note: this gap was surfaced by the [speaker role] during the call, not independently raised by the client." This tells the PM the cluster originated from internal product observation, not customer pain data — which affects prioritisation.
 
 ### Acceptance criteria traceability discipline
 

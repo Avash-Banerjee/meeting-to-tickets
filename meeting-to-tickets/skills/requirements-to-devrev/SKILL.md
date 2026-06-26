@@ -1,6 +1,6 @@
 ---
 name: requirements-to-devrev
-description: For each neutral requirements brief in meetings/<slug>/requirements/, produce a DevRev-ready ticket at meetings/<slug>/devrev/<NN>-<slug>.md that can be copy-pasted directly into DevRev's create-work-item UI. Hybrid template — consistent outer shell, inner sections adapt by requirements type (problem | capability_gap | constraint). No verbatim transcript quotes (those stay in the requirements brief, which is the audit trail).
+description: For each neutral requirements brief in meetings/<slug>/requirements/, produce a DevRev-ready ticket at meetings/<slug>/devrev/<NN>-<slug>.md that can be copy-pasted directly into DevRev's create-work-item UI. Hybrid template — consistent outer shell, inner sections adapt by requirements type (problem | capability_gap | constraint | task | discovery). No verbatim transcript quotes (those stay in the requirements brief, which is the audit trail).
 ---
 
 # requirements-to-devrev
@@ -23,11 +23,12 @@ A path to a meeting folder. Must already contain `requirements/*.md` files.
 |---|---|---|
 | `problem` | `feature_request` | Pain identified; solution needs to be designed |
 | `capability_gap` | `improvement` | Workaround exists; build the real thing |
-| `constraint` | `task` | Discovery / validation activity, not a build |
+| `constraint` | `task` | Boundary to confirm before dependent work starts |
 | `task` | `task` | Discrete operational/process work — direct mapping |
+| `discovery` | `task` | Investigation output (test, call, feasibility doc) — not a feature to build |
 | (only if brief explicitly described a defect) | `bug` | Bug fix |
 
-DevRev's `task` is a generic discrete-work bucket. Both `constraint` and `task` from requirements export as `task` in DevRev — the title and Objective/Success Criteria sections make clear which is which (a constraint's Objective is "confirm X"; a task's Objective is "deliver Y"). DevRev does not need to distinguish at the type level.
+DevRev's `task` is a generic discrete-work bucket. `constraint`, `task`, and `discovery` from requirements all export as `task` in DevRev — the title and Objective/Success Criteria sections make clear which is which. DevRev does not need to distinguish at the type level.
 
 ## Severity mapping
 
@@ -70,10 +71,27 @@ One paragraph, 2–3 sentences. Adapt the framing by type:
 - **problem** — state the pain, not the fix. ("Patients can't reach the clinic after hours, causing missed bookings.")
 - **capability_gap** — state the gap *and* the rough direction. ("Replace manual CSV exports with an automated daily pipeline integrating Salesforce, SAP, and the legacy PostgreSQL inventory system.")
 - **constraint** — state what must be confirmed. ("Confirm whether the legacy PostgreSQL inventory schema can be captured before the two developers leave next month.")
+- **discovery** — state what is unknown and what the investigation must produce. ("The AI Analyst's behavior on logic-gated questionnaires is unknown — this spike must test it and produce a documented behavior description and product decision before Tokio Marine uses the feature.")
+
+### Section 2b: Steps to Reproduce (bug only)
+
+For `bug` type tickets, insert this section immediately after Summary, before Business Impact:
+
+```
+**Steps to Reproduce:**
+1. <Setup / prerequisite configuration state, derived from the brief's problem statement and evidence>
+2. <The triggering action>
+3. <Any additional steps, if applicable>
+
+**Expected:** <what the product should do>
+**Actual:** <what it does instead, per the evidence>
+```
+
+Derive all steps from the requirements brief — do not invent steps not grounded in the brief's evidence. The repro must be specific enough that an engineer can reproduce without reading the original transcript. Omit for all non-bug types.
 
 ### Section 3: Business Impact (problem | capability_gap only)
 
-Bullet list. Pull from the brief's "Cost of doing nothing" and "Who has this problem" lines. Quantify when the brief did. **Omit this section entirely for `constraint` briefs** — constraints have blast radius (captured under "Blocks"), not impact.
+Bullet list. Pull from the brief's "Cost of doing nothing" and "Who has this problem" lines. Quantify when the brief did. **Omit this section entirely for `constraint` and `discovery` briefs** — they have a scoped investigation to complete, not an impact case to make.
 
 ### Section 4: Current Workaround (problem | capability_gap, only if mentioned)
 
@@ -83,6 +101,7 @@ Bullet list. From the brief's "What they've already tried" line. Omit if the bri
 
 - **problem | capability_gap** — header is `## Proposed Outcome`. One paragraph describing what changes for the user when the work is done.
 - **constraint** — header is `## Objective`. One sentence stating what needs to be confirmed.
+- **discovery** — header is `## Objective`. One sentence stating what investigation must be completed and what artifact it produces (e.g., "Test X and produce a documented behavior description and product decision.").
 
 ### Section 6: Criteria (always)
 
@@ -90,6 +109,7 @@ Header varies by type:
 - **problem** — `## Provisional Acceptance Criteria` with one-line preamble: *"Subject to design exploration; challenge before estimation."* Then the checklist. Preserve `(inferred)` markers from the brief.
 - **capability_gap** — `## Acceptance Criteria`. Checklist copied from the brief. Preserve `(inferred)` markers.
 - **constraint** — `## Success Criteria`. Checklist describing what "confirmed" looks like. Adapt the brief's AC into validation criteria where needed.
+- **discovery** — `## Success Criteria`. Checklist describing what the investigation must produce (a documented test result, a decision on record, a captured user journey). Copy from the brief's AC as-is.
 
 If the brief had no acceptance criteria at all (all-inferred drop), write: `_To be defined after discovery._` under this header.
 
@@ -114,7 +134,7 @@ Bullet list, copied from the brief's `## Open questions` section. These are pre-
 
 Generate 3–5 kebab-case tags per ticket. Combine:
 - 1–2 **domain tags** from the theme name (e.g., "Goal/KPI tracking" → `goal-tracking`, `kpi`).
-- 1 **work-state tag**: `problem`, `capability-gap`, or `constraint`.
+- 1 **work-state tag**: `problem`, `capability-gap`, `constraint`, or `discovery`.
 - 1–2 **business-area tags** if obvious from the brief (e.g., `data-pipeline`, `ux`, `security`, `compliance`, `alerting`).
 
 Avoid generic tags (`feature`, `platform`, `engineering`). Tags should narrow a backlog filter, not broaden it. Same tag set goes in both frontmatter and Section 1's `**Tags:**` line.

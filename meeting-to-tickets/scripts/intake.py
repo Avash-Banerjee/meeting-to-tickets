@@ -89,8 +89,13 @@ def _is_header_key(label: str) -> bool:
     return label.strip().lower().rstrip(":") in _HEADER_KEYS
 
 
+def _is_otter_format(text: str) -> bool:
+    """Return True when ≥3 lines match the Otter.ai speaker-header pattern."""
+    return sum(1 for ln in text.splitlines() if _OTTER_SPEAKER_RE.match(ln.rstrip())) >= 3
+
+
 def detect_format(text: str) -> str:
-    """Return one of: vtt, srt, bracketed-ts, labeled, unknown."""
+    """Return one of: vtt, srt, bracketed-ts, otter, labeled, unknown."""
     stripped = text.lstrip()
     if stripped.startswith("WEBVTT"):
         return "vtt"
@@ -98,6 +103,8 @@ def detect_format(text: str) -> str:
         return "srt"
     if _BRACKETED_TS_RE.search(text) or _PAREN_TS_RE.search(text):
         return "bracketed-ts"
+    if _is_otter_format(text):
+        return "otter"
     # "labeled" requires at least one non-header-key Speaker: line.
     for m in _LABEL_AT_START_RE.finditer(text):
         if not _is_header_key(m.group(1)):
@@ -172,6 +179,11 @@ _LINE_BRACKETED_RE = re.compile(
 _LINE_PAREN_RE = re.compile(r"^\((\d{1,2}:\d{2})\)\s+([^:]+?):\s*(.*)$")
 _LINE_LABELED_RE = re.compile(r"^([A-Z][A-Za-z .'-]*):\s*(.+)$")
 
+# Otter.ai: "Speaker Name  M:SS" on its own line, text on the next line(s).
+# Two or more spaces separate the name from the timestamp.
+_OTTER_SPEAKER_RE = re.compile(r"^(.+?)\s{2,}(\d{1,2}:\d{2}(?::\d{2})?)\s*$")
+_OTTER_FOOTER_RE = re.compile(r"^Transcribed by\b", re.IGNORECASE)
+
 
 def _to_mm_ss(ts: str) -> str:
     """Normalize "H:MM:SS" or "HH:MM:SS" timestamps to "MM:SS" (mod 60 minutes).
@@ -242,6 +254,41 @@ def parse_labeled(text: str) -> list[Utterance]:
     if current is not None:
         speaker, lines = current
         out.append(Utterance(None, speaker, " ".join(lines).strip()))
+    return out
+
+
+def parse_otter(text: str) -> list[Utterance]:
+    """Otter.ai export: `Speaker Name  M:SS` on its own line, text on the next
+    line(s). Footer lines ("Transcribed by …") are silently dropped."""
+    out: list[Utterance] = []
+    current_speaker: str | None = None
+    current_ts: str | None = None
+    current_lines: list[str] = []
+
+    def _flush() -> None:
+        if current_speaker is not None:
+            body = " ".join(current_lines).strip()
+            if body:
+                out.append(Utterance(
+                    timestamp=_to_mm_ss(current_ts) if current_ts else None,
+                    speaker=current_speaker,
+                    text=body,
+                ))
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or _OTTER_FOOTER_RE.match(line):
+            continue
+        m = _OTTER_SPEAKER_RE.match(raw.rstrip())
+        if m:
+            _flush()
+            current_speaker = m.group(1).strip()
+            current_ts = m.group(2)
+            current_lines = []
+        elif current_speaker is not None:
+            current_lines.append(line)
+
+    _flush()
     return out
 
 
@@ -489,6 +536,7 @@ _PARSERS = {
     "vtt": parse_vtt,
     "srt": parse_srt,
     "bracketed-ts": parse_bracketed_ts,
+    "otter": parse_otter,
     "labeled": parse_labeled,
     "unknown": parse_unknown,
 }
