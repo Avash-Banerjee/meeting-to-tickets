@@ -2,6 +2,36 @@
 
 A Claude Code / Agent SDK plugin that turns meeting transcripts into DevRev-ready ticket drafts on disk, with *The Mom's Test* discipline at every stage.
 
+## What it does
+
+Most meeting notes capture what was said. This tool captures what actually matters — the real business problems, the evidence behind each request, and what needs to happen next.
+
+Drop in a raw transcript. The pipeline reads it the way a good BA would: it finds the pain points, the workarounds customers are already using, the things that were asked for and then walked back, and the decisions that were made. Every finding stays linked to the exact quote it came from. Nothing is assumed. Anything without evidence is flagged or dropped.
+
+The output is two sets of files per meeting:
+
+- **Requirements briefs** (`requirements/*.md`) — one per business theme. Plain-language, tool-agnostic. Includes the problem statement, supporting quotes, business impact, what the customer actually needs vs. what they asked for, acceptance criteria, dependencies, and open questions. Designed for a PM or BA to review and approve before anything goes into the backlog.
+- **DevRev tickets** (`devrev/*.md`) — one per brief, ready to copy-paste into DevRev. Lean engineering-handoff format. The quotes stay in the brief; the ticket just has what an engineer needs.
+
+### How it works — the stages
+
+| Stage | What it does |
+|---|---|
+| **Transcript normalization** | Cleans the raw transcript into a consistent format regardless of source (Otter.ai, VTT, plain text). |
+| **Meeting outline** | Builds a reference index of recurring themes, key entities, costs mentioned, commitments made, and any points where someone asked for something and then changed their mind. |
+| **Mom's Test extraction** | Reads the transcript through the lens of *The Mom's Test* — separating real business problems from feature wishes, identifying workarounds, costs of inaction, and commitments. Every finding is anchored to a verbatim quote. |
+| **QA reconciliation** | For long calls split across multiple chunks, merges duplicate findings and resolves references that span different parts of the conversation. |
+| **Theme clustering** | Groups related findings into logical themes — each one roughly maps to one backlog item. |
+| **Requirements drafting** | Writes one structured brief per theme. |
+| **DevRev export** | Converts each brief into a DevRev-ready ticket with the right type, severity, and field shape. |
+
+### Key principles
+
+- **Evidence-first** — every requirement traces back to a specific quote in the transcript.
+- **Problem-first** — the briefs describe what hurts, not what to build. Solutions come later.
+- **Hallucination-resistant** — anything not grounded in the transcript is either flagged `(inferred)` or dropped entirely.
+- **Human-review in the loop** — the requirements briefs are a PM checkpoint before anything reaches engineering.
+
 ## Pipeline (adaptive: 5-stage fast path / 7-stage full path)
 
 ```
