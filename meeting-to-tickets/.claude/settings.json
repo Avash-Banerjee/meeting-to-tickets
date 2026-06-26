@@ -16,6 +16,7 @@
       "Write(*meetings/*/dropped.md)",
       "Write(*meetings/*/requirements/*.md)",
       "Write(*meetings/*/devrev/*.md)",
+      "Write(*meetings/*/run.log)",
       "Edit(*meetings/*/normalized.md)",
       "Edit(*meetings/*/outline.md)",
       "Edit(*meetings/*/qa.md)",
@@ -23,7 +24,8 @@
       "Edit(*meetings/*/clusters.md)",
       "Edit(*meetings/*/dropped.md)",
       "Edit(*meetings/*/requirements/*.md)",
-      "Edit(*meetings/*/devrev/*.md)"
+      "Edit(*meetings/*/devrev/*.md)",
+      "Edit(*meetings/*/run.log)"
     ]
   }
 }

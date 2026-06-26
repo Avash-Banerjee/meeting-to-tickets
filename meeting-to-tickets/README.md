@@ -157,14 +157,10 @@ Run invariants against the committed fixture snapshots as a smoke test:
 | `fast-evidence` | Single-pass outline + extraction + reconciliation for single-chunk transcripts. Fast path only. |
 | `moms-test-extraction` | Per-chunk Mom's-Test Q&A extraction with outline as context. Full path only. |
 | `qa-reconciler` | Cross-chunk dedup + walk-back resolution into consolidated qa.md. Full path only. |
-| `theme-clustering` | Group Q&As into themed clusters with suggested type (problem / capability_gap / constraint) |
+| `theme-clustering` | Group Q&As into themed clusters with suggested type (problem / capability_gap / constraint / discovery) |
 | `requirements-drafting` | Neutral, tool-agnostic requirement brief per cluster |
 | `requirements-to-devrev` | DevRev-ready ticket per brief (hybrid template adapting by requirements type) |
 | `meeting-to-tickets` | Orchestrator: picks fast or full path, chains all stages with idempotency |
-
-## Design
-
-Full design and rationale: `docs/superpowers/specs/2026-06-21-meeting-to-devrev-tickets-design.md` (in the parent project root if you cloned the workspace; in this repo if you cloned just the plugin).
 
 ## Phase 2 paths
 
