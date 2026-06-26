@@ -192,8 +192,3 @@ Run invariants against the committed fixture snapshots as a smoke test:
 | `requirements-to-devrev` | DevRev-ready ticket per brief (hybrid template adapting by requirements type) |
 | `meeting-to-tickets` | Orchestrator: picks fast or full path, chains all stages with idempotency |
 
-## Phase 2 paths
-
-- **Backend service for intake** — heavier transcripts (multi-hour calls, parallel meetings) processed outside a session.
-- **devrev-publish skill** — calls DevRev API directly using the `devrev/*.md` files this plugin already produces. Field mapping is already done; this just needs the API client and Part-ID lookup.
-- **Multi-meeting state** — themes deduplicating across calls (the same client mentioned in three meetings = one ticket, not three).
